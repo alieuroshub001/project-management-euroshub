@@ -1,9 +1,10 @@
-// components/employee/attendance/CheckInModal.tsx
+// components/employee/attendance/CheckInModal.tsx - FIXED VERSION
 'use client';
 
-import { Modal, Form, Select, Input, Button, Switch, message, Alert } from 'antd';
-import { useState, useEffect } from 'react';
 import { EnvironmentOutlined, WarningOutlined } from '@ant-design/icons';
+import { Alert, Button, Form, Input, Modal, Select, Switch, message } from 'antd';
+import { useEffect, useState } from 'react';
+import { AttendanceRecord } from './types'; // Import from the correct types file
 
 const { Option } = Select;
 const { TextArea } = Input;
@@ -19,14 +20,6 @@ interface LocationData {
   longitude: number;
   latitude: number;
   address?: string;
-}
-
-interface AttendanceRecord {
-  checkIn: string;
-  status: string;
-  shift: string;
-  checkInReason?: string;
-  [key: string]: unknown;
 }
 
 interface ConflictData {

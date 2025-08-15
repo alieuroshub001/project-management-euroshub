@@ -1,24 +1,24 @@
 // components/employee/attendance/CurrentAttendance.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Card, Typography, Button, Tag, Statistic, Row, Col, Alert, Spin, message, List } from 'antd';
-import { 
-  ClockCircleOutlined, 
-  PlayCircleOutlined, 
-  PauseCircleOutlined,
-  LogoutOutlined,
-  EnvironmentOutlined,
-  UserOutlined,
+import {
   CalendarOutlined,
-  InfoCircleOutlined,
   CheckCircleOutlined,
-  ExclamationCircleOutlined
+  ClockCircleOutlined,
+  EnvironmentOutlined,
+  ExclamationCircleOutlined,
+  InfoCircleOutlined,
+  LogoutOutlined,
+  PauseCircleOutlined,
+  PlayCircleOutlined,
+  UserOutlined
 } from '@ant-design/icons';
-import { format, parseISO, differenceInMinutes } from 'date-fns';
+import { Alert, Button, Card, Col, List, Row, Spin, Statistic, Tag, Typography, message } from 'antd';
+import { differenceInMinutes, format, parseISO } from 'date-fns';
+import { useEffect, useState } from 'react';
+import BreakModal from './BreakModal';
 import CheckInModal from './CheckInModal';
 import CheckOutModal from './CheckOutModal';
-import BreakModal from './BreakModal';
 import NamazModal from './NamazModal';
 import { AttendanceRecord } from './types';
 

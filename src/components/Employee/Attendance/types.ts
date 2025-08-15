@@ -1,4 +1,4 @@
-// components/employee/attendance/types.ts
+// components/employee/attendance/types.ts - FIXED VERSION
 export interface AttendanceRecord {
   _id: string;
   id: string;
@@ -48,6 +48,15 @@ export interface AttendanceRecord {
   durationMinutes?: number;
 }
 
+// Minimal interface for CheckInModal props
+export interface AttendanceRecordBasic {
+  checkIn: string;
+  status: string;
+  shift: string;
+  checkInReason?: string;
+  [key: string]: unknown;
+}
+
 export interface AttendanceStats {
   totalDays: number;
   presentDays: number;
@@ -70,4 +79,53 @@ export interface AttendanceResponse {
     hasPrev: boolean;
   };
   stats: AttendanceStats;
+}
+
+// Additional interfaces for API payloads
+export interface CheckInPayload {
+  shift?: 'morning' | 'evening' | 'night' | 'flexible';
+  checkInReason?: string;
+  location?: {
+    longitude: number;
+    latitude: number;
+    address?: string;
+  };
+  notes?: string;
+  forceCheckIn?: boolean;
+  deviceInfo?: {
+    os: string;
+    browser: string;
+    ipAddress: string;
+  };
+}
+
+export interface CheckOutPayload {
+  action: 'checkout';
+  checkOutReason?: string;
+  tasksCompleted: Array<{
+    task: string;
+    description?: string;
+    hoursSpent?: number;
+    projectId?: string;
+  }>;
+  location?: {
+    longitude: number;
+    latitude: number;
+    address?: string;
+  };
+  notes?: string;
+  totalTaskHours?: number;
+}
+
+export interface BreakPayload {
+  action: 'break-start' | 'break-end';
+  recordId: string;
+  breakType?: 'break' | 'meal' | 'other';
+  breakNotes?: string;
+}
+
+export interface NamazPayload {
+  action: 'namaz-start' | 'namaz-end';
+  recordId: string;
+  namazType?: 'fajr' | 'dhuhr' | 'asr' | 'maghrib' | 'isha';
 }
