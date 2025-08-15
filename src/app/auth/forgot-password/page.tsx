@@ -1,9 +1,9 @@
-import LoginForm from '@/components/Auth/Login';
+import ForgotPasswordForm from '@/components/Auth/ForgotPassword';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 
-export default async function LoginPage() {
+export default async function ForgotPasswordPage() {
   const session = await getServerSession(authOptions);
 
   // If user is already logged in, redirect to dashboard
@@ -13,7 +13,7 @@ export default async function LoginPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <LoginForm />
+      <ForgotPasswordForm />
     </div>
   );
 }

@@ -1,22 +1,35 @@
 @import "tailwindcss";
 
+/* Light defaults */
 :root {
   --background: #ffffff;
   --foreground: #171717;
+
+  /* Fixed colors that NEVER change */
+  --fixed-black: #000000;
+  --fixed-white: #ffffff;
 }
 
+/* Tailwind v4 tokens */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+
+  /* Utility colors that don't flip */
+  --color-fixed-black: var(--fixed-black);
+  --color-fixed-white: var(--fixed-white);
+
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* Class-based dark mode (recommended) */
+html { color-scheme: light; }
+html.dark { color-scheme: dark; }
+
+html.dark {
+  --background: #0a0a0a; /* dark bg */
+  --foreground: #ededed; /* light text */
 }
 
 body {
