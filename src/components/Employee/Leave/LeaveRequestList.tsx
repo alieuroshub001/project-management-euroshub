@@ -119,7 +119,7 @@ export default function LeaveRequestList({ filter, role }: Props) {
       title: 'Action',
       key: 'action',
       render: (_: unknown, record: ILeaveRequest) => (
-        <Link href={`/dashboard/employee/my-leaves${record._id}`}>
+        <Link href={`/dashboard/employee/my-leaves/${record._id}`}>
           <Button type="link">View</Button>
         </Link>
       ),
