@@ -114,3 +114,30 @@ export interface IAttendanceRecord {
   createdAt: Date;
   updatedAt: Date;
 }
+
+export interface IAttachment {
+  url: string; // Cloudinary or other storage URL
+  name: string; // File name
+  public_id: string;
+  secure_url: string;
+  original_filename: string;
+  format: string;
+  bytes: number;
+  type: 'image' | 'video' | 'audio' | 'document';
+  resource_type: string;
+}
+
+export interface ILeaveRequest {
+  _id: string; // Standardize on string for MongoDB ObjectId
+  employeeId: string;
+  type: 'vacation' | 'sick' | 'personal' | 'bereavement' | 'other';
+  startDate: Date;
+  endDate: Date;
+  reason: string;
+  status: 'pending' | 'approved' | 'rejected' | 'cancelled';
+  reviewedBy?: string;
+  reviewedAt?: Date;
+  attachments?: IAttachment[];
+  createdAt: Date;
+  updatedAt: Date;
+}
