@@ -19,7 +19,7 @@ export default async function EditLeaveRequestPage({
 
   // basic ObjectId sanity check
   const isValidRequestId = /^[a-fA-F0-9]{24}$/.test(resolvedParams.requestId);
-  if (!isValidRequestId) redirect('/dashboard/leave');
+  if (!isValidRequestId) redirect('/dashboard/employee/my-leaves');
 
   return (
     <LeaveClientWrapper>
@@ -30,7 +30,7 @@ export default async function EditLeaveRequestPage({
             <div className="flex items-center justify-between h-16">
               <div className="flex items-center space-x-4">
                 <Link
-                  href="/dashboard/leave"
+                  href="/dashboard/employee/my-leaves"
                   className="flex items-center space-x-2 text-gray-600 hover:text-gray-900 transition-colors"
                 >
                   <ArrowLeft className="w-5 h-5" />

@@ -1,17 +1,18 @@
-// types/index.ts - Updated with media support
+// types/index.ts - Updated with proper mongoose interface
+import { Document } from 'mongoose';
+
 export type UserRole = 'superadmin' | 'admin' | 'hr' | 'employee' | 'client';
 
-// types/index.ts
 export interface IUser {
   id: string;
   name: string;
   email: string;
   role: UserRole;
   emailVerified: boolean;
-  phone?: string; // Add optional phone field
-  profileImage?: string; // Add optional profileImage field
+  phone?: string;
+  profileImage?: string;
   verificationToken?: string;
-    employeeId?: string; // Add employeeId field
+  employeeId?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -36,10 +37,10 @@ export interface ISession {
 // OTP and password reset types
 export interface IOTP {
   id: string;
-  email: string; // Email where OTP was sent
+  email: string;
   otp: string;
   type: 'verification' | 'password-reset';
-  referenceEmail?: string; // Original user email (for admin approval cases)
+  referenceEmail?: string;
   expiresAt: Date;
   createdAt: Date;
 }
@@ -80,18 +81,18 @@ export interface ITaskCompleted {
   task: string;
   description?: string;
   hoursSpent?: number;
-  projectId?: string; // Reference to project if applicable
+  projectId?: string;
 }
 
 export interface IAttendanceRecord {
   id: string;
   employeeId: string;
-  date: Date; // Just date portion (without time)
-  checkIn: Date; // Full datetime
-  checkOut?: Date; // Full datetime
+  date: Date;
+  checkIn: Date;
+  checkOut?: Date;
   checkInLocation?: {
     type: 'Point';
-    coordinates: [number, number]; // [longitude, latitude]
+    coordinates: [number, number];
     address?: string;
   };
   checkOutLocation?: {
@@ -102,7 +103,7 @@ export interface IAttendanceRecord {
   checkInReason?: string;
   checkOutReason?: string;
   status: AttendanceStatus;
-  shift?: ShiftType; // Made optional to support flexible schedules
+  shift?: ShiftType;
   tasksCompleted?: ITaskCompleted[];
   breaks?: IBreak[];
   totalBreakMinutes?: number;
@@ -116,8 +117,8 @@ export interface IAttendanceRecord {
 }
 
 export interface IAttachment {
-  url: string; // Cloudinary or other storage URL
-  name: string; // File name
+  url: string;
+  name: string;
   public_id: string;
   secure_url: string;
   original_filename: string;
@@ -127,8 +128,8 @@ export interface IAttachment {
   resource_type: string;
 }
 
-export interface ILeaveRequest {
-  _id: string; // Standardize on string for MongoDB ObjectId
+// Base interface for leave request data
+export interface ILeaveRequestBase {
   employeeId: string;
   type: 'vacation' | 'sick' | 'personal' | 'bereavement' | 'other';
   startDate: Date;
@@ -140,4 +141,29 @@ export interface ILeaveRequest {
   attachments?: IAttachment[];
   createdAt: Date;
   updatedAt: Date;
+}
+
+// Interface for use in React components (with _id as string)
+export interface ILeaveRequest extends ILeaveRequestBase {
+  _id: string;
+}
+
+// Interface for Mongoose document (extends Document)
+export interface ILeaveRequestDocument extends ILeaveRequestBase, Document {
+  _id: string;
+  // Virtual fields
+  durationDays?: number;
+  // Instance methods
+  canBeEdited(): boolean;
+  canBeCancelled(): boolean;
+}
+
+// Interface for Mongoose model static methods
+export interface ILeaveRequestModel {
+  hasOverlappingLeave(
+    employeeId: string, 
+    startDate: Date, 
+    endDate: Date, 
+    excludeId?: string
+  ): Promise<boolean>;
 }

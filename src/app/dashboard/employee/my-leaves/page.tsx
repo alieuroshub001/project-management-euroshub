@@ -61,7 +61,7 @@ export default async function LeavePage() {
               {/* Quick Actions */}
               <div className="space-y-2">
                 <Link
-                  href="/dashboard/leave/new"
+                  href="/dashboard/employee/my-leaves/new"
                   className="w-full flex items-center justify-center space-x-2 bg-indigo-600 text-white py-2 px-4 rounded-lg hover:bg-indigo-700 transition-colors"
                 >
                   <CalendarPlus className="w-4 h-4" />
@@ -79,7 +79,7 @@ export default async function LeavePage() {
             <div className="flex items-center justify-between">
               <h1 className="text-lg font-semibold text-gray-900">My Leave Requests</h1>
               <Link
-                href="/dashboard/leave/new"
+                href="/dashboard/employee/my-leaves/new"
                 className="p-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
               >
                 <CalendarPlus className="w-5 h-5" />
