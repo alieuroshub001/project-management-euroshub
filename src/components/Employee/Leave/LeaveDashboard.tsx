@@ -115,7 +115,7 @@ export default function LeaveRequestList({ filter }: { filter?: ListFilters }) {
       title: 'Action',
       key: 'action',
       render: (_: unknown, record: ILeaveRequest) => (
-        <Link href={`/dashboard/leave/${record._id}`}>
+        <Link href={`/dashboard/employee/my-leaves/${record._id}`}>
           <Button type="link">View</Button>
         </Link>
       ),
@@ -128,7 +128,7 @@ export default function LeaveRequestList({ filter }: { filter?: ListFilters }) {
       {!filter?.status && (
         <div className="flex justify-between items-center">
           <h2 className="text-xl font-bold">My Leave Requests</h2>
-          <Button type="primary" onClick={() => router.push('/employee/leave/new')}>
+          <Button type="primary" onClick={() => router.push('/employee/my-leaves/new')}>
             New Leave Request
           </Button>
         </div>

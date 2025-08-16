@@ -44,12 +44,12 @@ export default function LeaveRequestDetail({ requestId }: Props) {
         setLeaveRequest(data.data);
       } else {
         message.error(data.message || "Failed to fetch leave request");
-        router.push("/dashboard/leave");
+        router.push("/dashboard/employee/my-leaves");
       }
     } catch (err) {
       console.error("Failed to fetch leave request:", err);
       message.error("Failed to fetch leave request");
-      router.push("/dashboard/leave");
+      router.push("/dashboard/employee/my-leaves");
     } finally {
       setLoading(false);
     }
@@ -66,7 +66,7 @@ export default function LeaveRequestDetail({ requestId }: Props) {
 
         if (data.success) {
           message.success("Leave request deleted successfully");
-          router.push("/dashboard/leave");
+          router.push("/dashboard/employee/my-leaves");
         } else {
           message.error(data.message || "Failed to delete leave request");
         }
@@ -111,7 +111,7 @@ export default function LeaveRequestDetail({ requestId }: Props) {
     <Card
       title="Leave Request Details"
       loading={loading}
-      extra={<Button onClick={() => router.push("/dashboard/leave")}>Back to List</Button>}
+      extra={<Button onClick={() => router.push("/dashboard/employee/my-leaves")}>Back to List</Button>}
     >
       <Descriptions bordered column={1}>
         <Descriptions.Item label="Type">
@@ -179,7 +179,7 @@ export default function LeaveRequestDetail({ requestId }: Props) {
       <div className="mt-6 flex justify-end gap-2">
         {canEditOrCancel && (
           <>
-            <Button type="primary" onClick={() => router.push(`/dashboard/leave/${id}/edit`)}>
+            <Button type="primary" onClick={() => router.push(`/dashboard/employee/my-leaves${id}/edit`)}>
               Edit
             </Button>
             <Popconfirm

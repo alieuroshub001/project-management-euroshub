@@ -57,7 +57,7 @@ export default function LeaveRequestForm({ requestId, initialValues }: Props) {
         const data: IApiResponse = await res.json();
         if (!data.success) {
           message.error(data.message ?? 'Failed to load leave request');
-          router.push('/dashboard/leave');
+          router.push('/dashboard/employee/my-leaves');
           return;
         }
         const req = data.data as OnePayload;
@@ -78,7 +78,7 @@ export default function LeaveRequestForm({ requestId, initialValues }: Props) {
       } catch (e) {
         console.error('Failed to load leave request', e);
         message.error('Failed to load leave request');
-        router.push('/dashboard/leave');
+        router.push('/dashboard/employee/my-leaves');
       } finally {
         setLoadingInitial(false);
       }
@@ -120,7 +120,7 @@ export default function LeaveRequestForm({ requestId, initialValues }: Props) {
 
       if (data.success) {
         message.success(data.message ?? (isEdit ? 'Updated' : 'Created'));
-        router.push('/dashboard/leave');
+        router.push('/dashboard/employee/my-leaves');
       } else {
         message.error(data.message ?? 'Failed to submit leave request');
       }
@@ -200,7 +200,7 @@ export default function LeaveRequestForm({ requestId, initialValues }: Props) {
             <Button type="primary" htmlType="submit" loading={loading}>
               {isEdit ? 'Update Request' : 'Submit Request'}
             </Button>
-            <Button className="ml-2" onClick={() => router.push('/dashboard/leave')}>
+            <Button className="ml-2" onClick={() => router.push('/dashboard/employee/my-leaves')}>
               Cancel
             </Button>
           </Form.Item>

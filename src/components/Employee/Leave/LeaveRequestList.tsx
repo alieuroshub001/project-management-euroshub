@@ -119,7 +119,7 @@ export default function LeaveRequestList({ filter, role }: Props) {
       title: 'Action',
       key: 'action',
       render: (_: unknown, record: ILeaveRequest) => (
-        <Link href={`/dashboard/leave/${record._id}`}>
+        <Link href={`/dashboard/employee/my-leaves${record._id}`}>
           <Button type="link">View</Button>
         </Link>
       ),
@@ -135,7 +135,7 @@ export default function LeaveRequestList({ filter, role }: Props) {
         <div className="flex justify-between items-center">
           <h2 className="text-xl font-bold">My Leave Requests</h2>
           {canCreate && (
-            <Button type="primary" onClick={() => router.push('/dashboard/leave/new')}>
+            <Button type="primary" onClick={() => router.push('/dashboard/employee/my-leaves/new')}>
               New Leave Request
             </Button>
           )}
