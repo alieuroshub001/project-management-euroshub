@@ -15,7 +15,6 @@ export default async function LeavePage() {
   }
 
   const userRole = session.user.role as UserRole;
-  const isEmployee = userRole === 'employee';
 
   return (
     <LeaveClientWrapper>
