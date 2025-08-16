@@ -72,7 +72,7 @@ export default function DashboardNav({ role }: DashboardNavProps) {
       { href: '/dashboard/employee/my-projects', name: 'My Projects', icon: FolderKanban },
       { href: '/dashboard/employee/time-tracking', name: 'Time Tracking', icon: Clock },
       { href: '/dashboard/employee/my-profile', name: 'My Profile', icon: User },
-      { href: '/dashboard/employee/leave', name: 'Leave Requests', icon: Calendar },
+      { href: '/dashboard/employee/my-leaves', name: 'Leave Requests', icon: Calendar },
       { href: '/dashboard/employee/my-attendance', name: 'My Attendance', icon: Clock },
       { href: '/dashboard/employee/communication', name: 'Communication', icon: MessageSquare },
     ],
