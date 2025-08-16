@@ -9,13 +9,16 @@ import LeaveRequestForm from '@/components/Employee/Leave/LeaveRequestForm';
 export default async function EditLeaveRequestPage({
   params,
 }: {
-  params: { requestId: string };
+  params: Promise<{ requestId: string }>;
 }) {
   const session = await getServerSession(authOptions);
   if (!session) redirect('/auth/login');
 
+  // Await the params Promise
+  const resolvedParams = await params;
+
   // basic ObjectId sanity check
-  const isValidRequestId = /^[a-fA-F0-9]{24}$/.test(params.requestId);
+  const isValidRequestId = /^[a-fA-F0-9]{24}$/.test(resolvedParams.requestId);
   if (!isValidRequestId) redirect('/dashboard/leave');
 
   return (
@@ -45,7 +48,7 @@ export default async function EditLeaveRequestPage({
           <div className="flex justify-center">
             <div className="w-full max-w-2xl">
               <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <LeaveRequestForm userId={session.user.id} requestId={params.requestId} />
+                <LeaveRequestForm userId={session.user.id} requestId={resolvedParams.requestId} />
               </div>
             </div>
           </div>
@@ -56,6 +59,6 @@ export default async function EditLeaveRequestPage({
 }
 
 export const metadata = {
-  title: 'Edit Leave Request - HR Dashboard',
+  title: 'Edit Leave Request',
   description: 'Update an existing leave request',
 };

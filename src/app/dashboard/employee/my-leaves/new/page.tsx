@@ -78,6 +78,6 @@ export default async function NewLeaveRequestPage() {
 }
 
 export const metadata = {
-  title: 'New Leave Request - HR Dashboard',
+  title: 'New Leave Request',
   description: 'Create a new leave request for approval',
 };

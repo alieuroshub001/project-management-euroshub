@@ -114,6 +114,6 @@ export default async function LeavePage() {
 }
 
 export const metadata = {
-  title: 'Leave Management - HR Dashboard',
+  title: 'Leave Management',
   description: 'Manage your leave requests and view your leave balance',
 };

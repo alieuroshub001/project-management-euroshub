@@ -8,7 +8,7 @@ import LeaveRequestDetail from '@/components/Employee/Leave/LeaveRequestDetail';
 export default async function LeaveRequestPage({
   params,
 }: {
-  params: { requestId: string };
+  params: Promise<{ requestId: string }>;
 }) {
   const session = await getServerSession(authOptions);
   
@@ -16,8 +16,11 @@ export default async function LeaveRequestPage({
     redirect('/auth/login');
   }
 
+  // Await the params Promise
+  const resolvedParams = await params;
+
   // Validate requestId format (basic MongoDB ObjectId validation)
-  const isValidRequestId = /^[a-fA-F0-9]{24}$/.test(params.requestId);
+  const isValidRequestId = /^[a-fA-F0-9]{24}$/.test(resolvedParams.requestId);
   if (!isValidRequestId) {
     redirect('/dashboard/leave');
   }
@@ -48,7 +51,7 @@ export default async function LeaveRequestPage({
         {/* Main Content */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <LeaveRequestDetail 
-            requestId={params.requestId} 
+            requestId={resolvedParams.requestId} 
             userId={session.user.id}
             role={session.user.role as UserRole}
           />
@@ -59,11 +62,15 @@ export default async function LeaveRequestPage({
 }
 
 export async function generateMetadata({
+  params,
 }: {
-  params: { requestId: string };
+  params: Promise<{ requestId: string }>;
 }) {
+  // If you need to use params in generateMetadata, you should await it here too
+  // const resolvedParams = await params;
+  
   return {
-    title: 'Leave Request Details - HR Dashboard',
+    title: 'Leave Request Details',
     description: 'View and manage your leave request',
   };
 }
