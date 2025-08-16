@@ -1,3 +1,4 @@
+//original
 // src/lib/cloudinary.ts
 // ✅ Browser-safe helpers. No Node SDK imports here.
 // They call server API routes that use the Cloudinary Node SDK.

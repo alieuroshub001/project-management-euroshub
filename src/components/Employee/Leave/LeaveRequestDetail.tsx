@@ -1,18 +1,12 @@
 // ./src/components/Employee/Leave/LeaveRequestDetail.tsx - FIXED VERSION
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { Button, Card, Descriptions, Badge, message, Popconfirm, Space, Divider } from "antd";
-import { DownloadOutlined, EyeOutlined, LinkOutlined } from "@ant-design/icons";
+import { DownloadOutlined, EyeOutlined, FileOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import type { IApiResponse, ILeaveRequest, IAttachment, UserRole } from "@/types";
-
-// Define interface for extended attachment with optional additional URLs
-interface ExtendedAttachment extends IAttachment {
-  view_url?: string;
-  download_url?: string;
-}
 
 // Define interface for populated user reference
 interface PopulatedUser {
@@ -43,12 +37,8 @@ export default function LeaveRequestDetail({ requestId }: Props) {
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
 
-  useEffect(() => {
-    if (id) void fetchLeaveRequest(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id]);
-
-  const fetchLeaveRequest = async (rid: string) => {
+  // FIXED: Use useCallback to memoize fetchLeaveRequest
+  const fetchLeaveRequest = useCallback(async (rid: string) => {
     try {
       setLoading(true);
       const res = await fetch(`/api/employee/leave/${rid}`);
@@ -67,7 +57,11 @@ export default function LeaveRequestDetail({ requestId }: Props) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [router]);
+
+  useEffect(() => {
+    if (id) void fetchLeaveRequest(id);
+  }, [id, fetchLeaveRequest]);
 
   const handleAction = async (action: "approve" | "reject" | "cancel" | "delete") => {
     if (!id) return;
@@ -116,7 +110,7 @@ export default function LeaveRequestDetail({ requestId }: Props) {
   };
 
   // Helper function to determine file type from multiple sources
-  const getFileType = (attachment: IAttachment): 'image' | 'document' | 'other' => {
+  const getFileType = (attachment: IAttachment): 'image' | 'document' => {
     // Check resource_type first
     if (attachment.resource_type === 'image') return 'image';
     
@@ -139,7 +133,7 @@ export default function LeaveRequestDetail({ requestId }: Props) {
   };
 
   // Helper function to get file icon based on type
-  const getFileIcon = (attachment: IAttachment) => {
+  const getFileIcon = (attachment: IAttachment): string => {
     const fileType = getFileType(attachment);
     const extension = getFileExtension(attachment.original_filename || attachment.name || '');
     const format = attachment.format?.toLowerCase() || extension;
@@ -162,183 +156,103 @@ export default function LeaveRequestDetail({ requestId }: Props) {
         return '📊';
       case 'ppt':
       case 'pptx':
-        return '📊';
+        return '📋';
       default:
         return '📎';
     }
   };
 
-  // COMPLETELY REWRITTEN: Better file handling with multiple fallback strategies
+  // FIXED: Simplified and more reliable file handling
   const handleFileAction = async (attachment: IAttachment, action: 'view' | 'download') => {
     console.log('File action:', action, 'for attachment:', attachment);
 
-    // Get all possible URLs with proper typing
-    const extendedAttachment = attachment as ExtendedAttachment;
-    const primaryUrl = attachment.secure_url || attachment.url;
-    const viewUrl = extendedAttachment.view_url || primaryUrl;
-    const downloadUrl = extendedAttachment.download_url || primaryUrl;
+    // Get the best available URL
+    const fileUrl = attachment.secure_url || attachment.url;
     
-    if (!primaryUrl) {
+    if (!fileUrl) {
       message.error('File URL not available');
       return;
     }
 
+    const fileName = attachment.original_filename || attachment.name || 'download';
     const fileType = getFileType(attachment);
-    const extension = getFileExtension(attachment.original_filename || attachment.name || '');
-    const format = attachment.format?.toLowerCase() || extension;
-    const fileName = attachment.original_filename || attachment.name || `file.${format}`;
+    const format = attachment.format?.toLowerCase() || getFileExtension(fileName) || 'unknown';
 
-    console.log(`${action} action for ${format} file:`, primaryUrl);
+    console.log(`${action} action for ${format} file:`, fileUrl);
 
     if (action === 'download') {
-      // DOWNLOAD ACTION - Multiple strategies
-      console.log('Starting download for:', fileName);
-      
       try {
-        // Strategy 1: Use download URL if available
-        const urlToUse = downloadUrl !== primaryUrl ? downloadUrl : primaryUrl;
-        
-        // Create download link
+        // Create a temporary anchor element for download
         const link = document.createElement('a');
-        link.href = urlToUse;
+        
+        // For Cloudinary URLs, ensure we force download
+        let downloadUrl = fileUrl;
+        if (fileUrl.includes('cloudinary.com')) {
+          // Add fl_attachment flag to force download
+          if (fileUrl.includes('/upload/')) {
+            downloadUrl = fileUrl.replace('/upload/', '/upload/fl_attachment/');
+          } else {
+            downloadUrl = `${fileUrl}?fl_attachment`;
+          }
+        }
+        
+        link.href = downloadUrl;
         link.download = fileName;
         link.target = '_blank';
         link.rel = 'noopener noreferrer';
         
-        // Try programmatic click first
+        // Append to DOM, click, and remove
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
         
         message.success('Download started');
         
-        // Fallback: If programmatic download doesn't work, open in new tab
-        setTimeout(() => {
-          const newWindow = window.open(urlToUse, '_blank', 'noopener,noreferrer');
+      } catch (error) {
+        console.error('Download failed:', error);
+        // Fallback: Open in new tab
+        window.open(fileUrl, '_blank', 'noopener,noreferrer');
+        message.info('File opened in new tab - you can save it manually');
+      }
+      return;
+    }
+
+    // VIEW ACTION
+    if (action === 'view') {
+      try {
+        if (fileType === 'image') {
+          // For images, just open directly
+          const newWindow = window.open(fileUrl, '_blank', 'noopener,noreferrer');
           if (!newWindow) {
-            message.warning('Popup blocked. Please allow popups and try again.');
+            message.warning('Popup blocked. Please allow popups to view images.');
           }
-        }, 1000);
-        
-      } catch (error) {
-        console.error('Download error:', error);
-        // Ultimate fallback: just open the URL
-        window.open(primaryUrl, '_blank', 'noopener,noreferrer');
-        message.info('File opened in new tab for manual download');
-      }
-      
-      return;
-    }
+          return;
+        }
 
-    // VIEW ACTION - Enhanced with better PDF handling
-    if (fileType === 'image') {
-      // Images - simple case
-      try {
-        const newWindow = window.open(viewUrl, '_blank', 'noopener,noreferrer');
-        if (!newWindow) {
-          message.warning('Popup blocked. Please allow popups to view images.');
+        // For documents, especially PDFs
+        if (format === 'pdf') {
+          // Try direct PDF viewing first
+          const newWindow = window.open(fileUrl, '_blank', 'noopener,noreferrer');
+          if (!newWindow) {
+            message.warning('Popup blocked. Please allow popups to view PDF.');
+          }
+        } else {
+          // For other document types, try to open directly
+          const newWindow = window.open(fileUrl, '_blank', 'noopener,noreferrer');
+          if (!newWindow) {
+            message.warning('Cannot preview this file type. Trying download instead.');
+            handleFileAction(attachment, 'download');
+          }
         }
       } catch (error) {
-        console.error('Error opening image:', error);
-        message.error('Cannot open image');
-      }
-      return;
-    }
-
-    // DOCUMENT VIEWING - Enhanced PDF and document handling
-    if (format === 'pdf') {
-      console.log('Opening PDF for viewing:', viewUrl);
-      
-      try {
-        // Strategy 1: Try Google Docs viewer (works well for PDFs)
-        const googleViewerUrl = `https://docs.google.com/viewer?url=${encodeURIComponent(viewUrl)}&embedded=true`;
-        
-        // Strategy 2: Direct PDF URL
-        const directUrl = viewUrl;
-        
-        // Strategy 3: Alternative Cloudinary URL format
-        const alternativeUrl = primaryUrl.includes('res.cloudinary.com') 
-          ? primaryUrl.replace('/upload/', '/upload/fl_attachment/')
-          : primaryUrl;
-
-        // Try multiple viewing strategies
-        const tryViewingStrategies = async () => {
-          // First, test if the direct URL is accessible
-          try {
-            const testResponse = await fetch(viewUrl, { method: 'HEAD' });
-            console.log('PDF URL accessibility test:', testResponse.status);
-            
-            if (testResponse.ok) {
-              // Direct viewing
-              console.log('Trying direct PDF viewing...');
-              const directWindow = window.open(directUrl, '_blank', 'noopener,noreferrer');
-              
-              if (directWindow) {
-                // Give it time to load
-                setTimeout(() => {
-                  try {
-                    if (directWindow.closed) {
-                      console.log('Direct window was closed, trying Google Viewer...');
-                      openGoogleViewer();
-                    }
-                  } catch  {
-                    // Cross-origin error is expected and means it's working
-                    console.log('Direct PDF opened successfully');
-                  }
-                }, 2000);
-              } else {
-                console.log('Popup blocked for direct view, trying Google Viewer...');
-                openGoogleViewer();
-              }
-            } else {
-              console.log('PDF not directly accessible, trying Google Viewer...');
-              openGoogleViewer();
-            }
-          } catch (testError) {
-            console.log('Cannot test PDF accessibility, trying Google Viewer...', testError);
-            openGoogleViewer();
-          }
-        };
-
-        const openGoogleViewer = () => {
-          console.log('Opening PDF with Google Docs viewer...');
-          const googleWindow = window.open(googleViewerUrl, '_blank', 'noopener,noreferrer');
-          
-          if (!googleWindow) {
-            console.log('Google Viewer blocked, trying alternative...');
-            // Try alternative URL
-            const altWindow = window.open(alternativeUrl, '_blank', 'noopener,noreferrer');
-            if (!altWindow) {
-              message.error('Cannot open PDF. Popup blocked or PDF not accessible.');
-            }
-          }
-        };
-
-        await tryViewingStrategies();
-        
-      } catch (error) {
-        console.error('Error opening PDF:', error);
-        message.error('Cannot preview PDF. Trying download instead.');
-        handleFileAction(attachment, 'download');
-      }
-    } else {
-      // Other document types
-      try {
-        // For non-PDF documents, try direct opening
-        const newWindow = window.open(viewUrl, '_blank', 'noopener,noreferrer');
-        if (!newWindow) {
-          message.warning('Cannot preview this file type. Trying download instead.');
-          handleFileAction(attachment, 'download');
-        }
-      } catch (error) {
-        console.error('Error opening document:', error);
+        console.error('View failed:', error);
         message.warning('Cannot preview this file type. Trying download instead.');
         handleFileAction(attachment, 'download');
       }
     }
   };
 
-  // Render attachment list with improved error handling and better UI
+  // Render attachment list with improved UI
   const renderAttachments = (attachments: IAttachment[]) => {
     if (!attachments || attachments.length === 0) {
       return <span className="text-gray-500 italic">No attachments</span>;
@@ -352,20 +266,11 @@ export default function LeaveRequestDetail({ requestId }: Props) {
           const fileType = getFileType(attachment);
           const extension = getFileExtension(fileName);
           const displayFormat = attachment.format || extension || 'Unknown';
-          
-          // Debug log for troubleshooting
-          console.log(`Attachment ${index}:`, {
-            fileName,
-            fileType,
-            format: attachment.format,
-            resource_type: attachment.resource_type,
-            secure_url: attachment.secure_url,
-            url: attachment.url
-          });
+          const fileUrl = attachment.secure_url || attachment.url;
           
           return (
             <div 
-              key={index}
+              key={`${attachment.public_id || index}`}
               className="flex items-center justify-between p-4 border border-gray-200 rounded-lg bg-white hover:bg-gray-50 transition-colors shadow-sm"
             >
               <div className="flex items-center space-x-3">
@@ -379,8 +284,8 @@ export default function LeaveRequestDetail({ requestId }: Props) {
                   </div>
                   {/* Debug info in development */}
                   {process.env.NODE_ENV === 'development' && (
-                    <div className="text-xs text-blue-500 mt-1 font-mono">
-                      URL: {attachment.secure_url || attachment.url}
+                    <div className="text-xs text-blue-500 mt-1 font-mono break-all">
+                      URL: {fileUrl}
                     </div>
                   )}
                 </div>
@@ -389,7 +294,7 @@ export default function LeaveRequestDetail({ requestId }: Props) {
               <Space size="small">
                 <Button
                   type="default"
-                  icon={fileType === 'image' ? <EyeOutlined /> : <LinkOutlined />}
+                  icon={fileType === 'image' ? <EyeOutlined /> : <FileOutlined />}
                   onClick={() => handleFileAction(attachment, 'view')}
                   title={fileType === 'image' ? 'Preview image' : 'Open file'}
                   className="text-blue-600 hover:text-blue-800 border-blue-200 hover:border-blue-400"
@@ -447,7 +352,7 @@ export default function LeaveRequestDetail({ requestId }: Props) {
 
         <Descriptions.Item label="Dates">
           <span className="font-medium">
-            {dayjs(leaveRequest.startDate).format("MMM D, YYYY")} – {dayjs(leaveRequest.endDate).format("MMM D, YYYY")}
+            {dayjs(leaveRequest.startDate).format("MMM D, YYYY")} — {dayjs(leaveRequest.endDate).format("MMM D, YYYY")}
           </span>
         </Descriptions.Item>
 
@@ -477,7 +382,7 @@ export default function LeaveRequestDetail({ requestId }: Props) {
         </Descriptions.Item>
 
         {(leaveRequest.reviewedBy || leaveRequest.reviewedAt) && (
-          <Descriptions.Item label="Review Information" span={1}>
+          <Descriptions.Item label="Review Information">
             <div className="space-y-2">
               {leaveRequest.reviewedBy && (
                 <div>

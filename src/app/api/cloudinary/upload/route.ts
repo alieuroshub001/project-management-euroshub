@@ -106,24 +106,22 @@ export async function POST(req: Request) {
     const cleanFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
     const timestamp = Date.now();
 
-    // FIXED: Proper upload options that ensure public access
+    // FIXED: Proper upload options with public access
     const uploadOptions = {
       folder: `${folder}/${session.user.id}`,
       resource_type: resourceType as 'image' | 'raw',
       public_id: `${timestamp}-${cleanFileName}`,
       
-      // CRITICAL FIXES for public access:
-      type: 'upload', // Standard upload type
-      access_mode: 'public', // Ensure public access
+      // CRITICAL: Ensure public access
+      type: 'upload',
+      access_mode: 'public',
       
-      // For raw files, don't set format in upload options - let Cloudinary detect it
       use_filename: false,
       unique_filename: false,
       overwrite: false,
       
       // Additional options for better compatibility
-      invalidate: true, // Clear CDN cache
-      notification_url: undefined, // Don't use notification URLs
+      invalidate: true,
     };
 
     console.log('Upload options:', uploadOptions);
@@ -146,22 +144,15 @@ export async function POST(req: Request) {
       stream.end(buffer);
     });
 
-    // FIXED: Generate proper URLs using Cloudinary's URL helper
+    // FIXED: Generate proper public URLs
     const generateUrls = (uploadResult: UploadApiResponse) => {
       const publicId = uploadResult.public_id;
       
+      // Base URL should be directly accessible
+      const baseUrl = uploadResult.secure_url || uploadResult.url;
+      
       if (resourceType === 'raw') {
-        // For documents (PDFs, DOCs, etc.) - use Cloudinary's URL helper
-        const baseUrl = cloudinary.url(publicId, {
-          resource_type: 'raw',
-          type: 'upload',
-          secure: true,
-        });
-        
-        // Generate different URL variations
-        const viewUrl = baseUrl; // Direct URL for viewing
-        
-        // Download URL with attachment flag
+        // For documents, create downloadable URL
         const downloadUrl = cloudinary.url(publicId, {
           resource_type: 'raw',
           type: 'upload',
@@ -172,12 +163,11 @@ export async function POST(req: Request) {
         return {
           secure_url: baseUrl,
           url: baseUrl,
-          view_url: viewUrl,
+          view_url: baseUrl,
           download_url: downloadUrl
         };
       } else {
-        // For images - use the direct URLs from Cloudinary response
-        const baseUrl = uploadResult.secure_url || uploadResult.url;
+        // For images
         return {
           secure_url: baseUrl,
           url: uploadResult.url,
@@ -196,45 +186,6 @@ export async function POST(req: Request) {
       bytes: result.bytes,
       urls
     });
-
-    // IMPROVED: Test URL accessibility with better error handling
-    if (resourceType === 'raw') {
-      console.log('Testing PDF URL accessibility...');
-      try {
-        const testResponse = await fetch(urls.secure_url, { 
-          method: 'HEAD',
-          headers: {
-            'User-Agent': 'CloudinaryTest/1.0'
-          }
-        });
-        console.log('PDF URL test status:', testResponse.status);
-        
-        if (testResponse.status === 401) {
-          console.warn('PDF returned 401 - trying alternative URL generation...');
-          
-          // Alternative URL generation without signed URLs
-          const alternativeUrl = `https://res.cloudinary.com/${process.env.CLOUDINARY_CLOUD_NAME}/raw/upload/${result.public_id}`;
-          console.log('Trying alternative URL:', alternativeUrl);
-          
-          const altTestResponse = await fetch(alternativeUrl, { method: 'HEAD' });
-          console.log('Alternative URL test status:', altTestResponse.status);
-          
-          if (altTestResponse.ok) {
-            // Use the alternative URL if it works
-            urls.secure_url = alternativeUrl;
-            urls.url = alternativeUrl;
-            urls.view_url = alternativeUrl;
-          }
-        } else if (!testResponse.ok) {
-          console.warn('PDF URL test failed with status:', testResponse.status);
-        } else {
-          console.log('PDF URL is accessible');
-        }
-      } catch (testError) {
-        console.warn('Could not test PDF URL:', testError);
-        // Don't fail the upload just because we can't test the URL
-      }
-    }
 
     return NextResponse.json({
       success: true,
@@ -259,13 +210,11 @@ export async function POST(req: Request) {
         is_image: isImage,
         is_document: !isImage,
         
-        // Add debug info
-        cloudinary_response: process.env.NODE_ENV === 'development' ? {
-          public_id: result.public_id,
-          resource_type: result.resource_type,
-          type: result.type,
-          access_mode: result.access_mode
-        } : undefined
+        // Type field for consistency
+        type: isImage ? 'image' : 'document',
+        
+        // Add original name for display
+        name: file.name,
       },
     });
 
@@ -333,7 +282,7 @@ export async function DELETE(req: Request) {
       // Try as raw first (for PDFs, docs)
       result = await cloudinary.uploader.destroy(publicId, { 
         resource_type: 'raw',
-        type: 'upload' // Ensure we're deleting the right type
+        type: 'upload'
       });
     } catch {
       // Fallback to image
