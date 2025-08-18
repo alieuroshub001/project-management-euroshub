@@ -109,7 +109,7 @@ export default function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
     try {
       console.log('Creating chat with type:', chatType);
       
-      let requestBody: any;
+      let requestBody: { [key: string]: unknown };
       
       if (chatType === 'channel') {
         requestBody = {

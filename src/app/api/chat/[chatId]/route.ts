@@ -254,7 +254,7 @@ export async function POST(
     }
 
     // Create the message
-    const messageData: any = {
+    const messageData: Record<string, unknown> = {
       content: content?.trim(),
       sender: userId,
       attachments: attachments || [],

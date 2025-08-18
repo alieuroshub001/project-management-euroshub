@@ -1,4 +1,5 @@
 import { IAttachment } from '@/types';
+import Image from 'next/image';
 
 interface AttachmentPreviewProps {
   attachment: IAttachment;
@@ -9,10 +10,12 @@ export default function AttachmentPreview({ attachment }: AttachmentPreviewProps
     switch (attachment.type) {
       case 'image':
         return (
-          <img 
-            src={attachment.url} 
-            alt={attachment.name} 
-            className="max-w-full max-h-64 rounded-lg object-cover" 
+          <Image 
+            src={attachment.url}
+            alt={attachment.name}
+            width={512}
+            height={384}
+            className="max-w-full max-h-64 rounded-lg object-cover"
           />
         );
       case 'video':

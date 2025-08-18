@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import { IChatDocument, IMessage } from '@/types/chat';
-import { IApiResponse } from '@/types/index';
+// IApiResponse not needed here
 import ChatSidebar from './ChatSidebar';
 import ChatWindow from './ChatWindow';
 import ChatHeader from './ChatHeader';
@@ -143,7 +143,7 @@ export default function ChatMain() {
     }
   };
 
-  const handleSendMessage = async (content: string, attachments: any[] = []) => {
+  const handleSendMessage = async (content: string, attachments: { url: string; type: 'image' | 'document'; name?: string; public_id?: string; secure_url?: string; format?: string; bytes?: number; resource_type?: string }[] = []) => {
     if (!activeChat || (!content?.trim() && attachments.length === 0)) return;
 
     try {

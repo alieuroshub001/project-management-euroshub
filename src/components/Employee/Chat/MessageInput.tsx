@@ -4,17 +4,29 @@ import EmojiPicker from './EmojiPicker';
 import { useSocket } from '@/context/SocketContext';
 import { toast } from 'sonner';
 
+interface AttachmentPayload {
+  url: string;
+  secure_url?: string;
+  public_id?: string;
+  original_filename?: string;
+  format?: string;
+  bytes?: number;
+  type: 'image' | 'document';
+  resource_type?: string;
+  name?: string;
+}
+
 interface MessageInputProps {
   chatId: string;
-  onSend: (content: string, attachments?: any[]) => void;
+  onSend: (content: string, attachments?: AttachmentPayload[]) => void;
 }
 
 export default function MessageInput({ chatId, onSend }: MessageInputProps) {
   const [message, setMessage] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const [attachments, setAttachments] = useState<any[]>([]);
+  const [attachments, setAttachments] = useState<AttachmentPayload[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const socket = useSocket();
+  const { isConnected } = useSocket();
 
   const handleSend = () => {
     if (message.trim() || attachments.length > 0) {
@@ -64,7 +76,7 @@ export default function MessageInput({ chatId, onSend }: MessageInputProps) {
     });
 
     const results = await Promise.all(formUploads);
-    const valid = results.filter(Boolean) as any[];
+    const valid = results.filter(Boolean) as AttachmentPayload[];
     if (valid.length > 0) setAttachments((prev) => [...prev, ...valid]);
     // reset input
     e.currentTarget.value = '';
@@ -98,10 +110,12 @@ export default function MessageInput({ chatId, onSend }: MessageInputProps) {
           {attachments.map((attachment, index) => (
             <div key={index} className="relative">
               {attachment.type === 'image' ? (
-                <img 
-                  src={attachment.url} 
-                  alt={attachment.name} 
-                  className="h-20 w-20 object-cover rounded" 
+                // Thumbnail preview; next/image not ideal with blob/previews
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={attachment.url}
+                  alt={attachment.name}
+                  className="h-20 w-20 object-cover rounded"
                 />
               ) : (
                 <div className="h-20 w-20 bg-gray-100 rounded flex items-center justify-center">

@@ -2,10 +2,11 @@
 import { IApiResponse } from '@/types';
 
 interface FetchOptions extends RequestInit {
-  body?: any;
+  // Allows plain object, string, or FormData for flexibility
+  body?: unknown;
 }
 
-export async function fetchApi<T = any>(
+export async function fetchApi<T = unknown>(
   url: string,
   options: FetchOptions = {}
 ): Promise<IApiResponse<T>> {
@@ -20,11 +21,16 @@ export async function fetchApi<T = any>(
         ...defaultHeaders,
         ...options.headers,
       },
-      body: options.body ? JSON.stringify(options.body) : undefined,
+      body:
+        options.body instanceof FormData
+          ? options.body
+          : options.body && typeof options.body === 'object'
+          ? JSON.stringify(options.body)
+          : (options.body as BodyInit | null | undefined),
     });
 
-    const json = await response.json();
-    return json as IApiResponse<T>;
+    const json = (await response.json()) as IApiResponse<T>;
+    return json;
   } catch (error) {
     console.error('API request failed:', error);
     return {
