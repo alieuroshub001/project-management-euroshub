@@ -128,7 +128,7 @@ export default function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
 
       console.log('Request body:', requestBody);
 
-      const response = await fetchApi<IApiResponse<any>>('/api/chat', {
+      const response = await fetchApi<IApiResponse<unknown>>('/api/chat', {
         method: 'POST',
         body: requestBody,
       });
@@ -369,7 +369,7 @@ export default function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
             <div>Users loaded: {users.length}</div>
             <div>Selected users: {selectedUsers.length}</div>
             <div>Chat type: {chatType}</div>
-            {chatType === 'channel' && <div>Channel name: "{name}"</div>}
+            {chatType === 'channel' && <div>Channel name: &quot;{name}&quot;</div>}
           </div>
         )}
       </div>

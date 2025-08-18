@@ -26,7 +26,7 @@ export default function MessageInput({ chatId, onSend }: MessageInputProps) {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [attachments, setAttachments] = useState<AttachmentPayload[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { isConnected } = useSocket();
+  // socket optional; not used currently
 
   const handleSend = () => {
     if (message.trim() || attachments.length > 0) {
@@ -69,7 +69,7 @@ export default function MessageInput({ chatId, onSend }: MessageInputProps) {
           resource_type: json.data.resource_type,
           name: json.data.name,
         };
-      } catch (err) {
+      } catch {
         toast.error(`Failed to upload ${file.name}`);
         return null;
       }
