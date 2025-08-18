@@ -53,7 +53,7 @@ export default function DashboardNav({ role }: DashboardNavProps) {
     admin: [
       { href: '/dashboard/projects', name: 'Project Management', icon: FolderKanban },
       { href: '/dashboard/hr/directory', name: 'Employee Directory', icon: Users },
-      { href: '/dashboard/communication', name: 'Communication', icon: MessageSquare },
+      { href: '/dashboard/admin/my-chats', name: 'Communication', icon: MessageSquare },
       { href: '/dashboard/time-tracking', name: 'Time Tracking', icon: Clock },
       { href: '/dashboard/reporting', name: 'Reports & Analytics', icon: BarChart3 },
       { href: '/dashboard/admin', name: 'Administration', icon: Settings },
@@ -64,7 +64,7 @@ export default function DashboardNav({ role }: DashboardNavProps) {
       { href: '/dashboard/hr/leave', name: 'Leave', icon: Calendar },
       { href: '/dashboard/hr/documents', name: 'Document Management', icon: FileText },
       { href: '/dashboard/hr/onboarding', name: 'Onboarding/Offboarding', icon: UserPlus },
-      { href: '/dashboard/communication', name: 'Communication', icon: MessageSquare },
+      { href: '/dashboard/hr/my-chats', name: 'Communication', icon: MessageSquare },
       { href: '/dashboard/hr/attendance', name: 'Attendance', icon: Calendar },
       { href: '/dashboard/reporting/hr', name: 'HR Reports', icon: BarChart3 },
     ],
@@ -79,7 +79,7 @@ export default function DashboardNav({ role }: DashboardNavProps) {
     client: [
       { href: '/dashboard/client/client-projects', name: 'My Projects', icon: FolderKanban },
       { href: '/dashboard/client/projects/progress', name: 'Project Progress', icon: TrendingUp },
-      { href: '/dashboard/client/communication/client', name: 'Communication', icon: MessageSquare },
+      { href: '/dashboard/client/my-chats', name: 'Communication', icon: MessageSquare },
       { href: '/dashboard/client/reporting/client', name: 'Project Reports', icon: BarChart3 },
       { href: '/dashboard/client/time-tracking/view', name: 'Time Reports', icon: Eye },
     ],

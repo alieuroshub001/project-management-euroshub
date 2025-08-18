@@ -23,20 +23,13 @@ export async function fetchApi<T = any>(
       body: options.body ? JSON.stringify(options.body) : undefined,
     });
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const data = await response.json();
-    return {
-      success: true,
-      data,
-    };
+    const json = await response.json();
+    return json as IApiResponse<T>;
   } catch (error) {
     console.error('API request failed:', error);
     return {
       success: false,
       message: error instanceof Error ? error.message : 'Unknown error occurred',
-    };
+    } as IApiResponse<T>;
   }
 }

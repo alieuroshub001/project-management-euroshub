@@ -1,6 +1,5 @@
 'use client';
 
-import { useState } from 'react';
 import { useSession } from 'next-auth/react';
 import ChatMain from '@/components/Employee/Chat/ChatMain';
 
@@ -26,3 +25,4 @@ export default function ChatPage() {
     </div>
   );
 }
+

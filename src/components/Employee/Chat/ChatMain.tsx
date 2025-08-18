@@ -109,44 +109,24 @@ export default function ChatMain() {
     fetchMessages();
   }, [activeChat]);
 
-  /** Socket event handling */
+  /** Polling fallback for new messages */
   useEffect(() => {
-    if (!socket || !isConnected || !activeChat) return;
-
-    const handleNewMessage = (message: IMessage) => {
-      console.log('New message received:', message);
-      if (
-        (message.channelId === activeChat || message.conversationId === activeChat) &&
-        !messages.some((m) => m._id === message._id)
-      ) {
-        setMessages((prev) => [...prev, message]);
-      }
+    if (!activeChat) return;
+    let timer: ReturnType<typeof setInterval> | null = null;
+    const poll = async () => {
+      try {
+        const response = await fetchApi<{ chat: IChatDocument; messages: IMessage[] }>(
+          `/api/chat/${activeChat}`
+        );
+        if (response.success && response.data) {
+          const msgs = Array.isArray(response.data.messages) ? response.data.messages : [];
+          setMessages(msgs);
+        }
+      } catch {}
     };
-
-    const handleChatUpdate = (updatedChat: IChatDocument) => {
-      console.log('Chat updated:', updatedChat);
-      setChats((prev) =>
-        prev.map((chat) => (chat._id === updatedChat._id ? updatedChat : chat))
-      );
-    };
-
-    const handleMessageUpdate = (updatedMessage: IMessage) => {
-      console.log('Message updated:', updatedMessage);
-      setMessages((prev) =>
-        prev.map((msg) => (msg._id === updatedMessage._id ? updatedMessage : msg))
-      );
-    };
-
-    socket.on('newMessage', handleNewMessage);
-    socket.on('chatUpdated', handleChatUpdate);
-    socket.on('messageUpdated', handleMessageUpdate);
-
-    return () => {
-      socket.off('newMessage', handleNewMessage);
-      socket.off('chatUpdated', handleChatUpdate);
-      socket.off('messageUpdated', handleMessageUpdate);
-    };
-  }, [socket, isConnected, activeChat, messages]);
+    timer = setInterval(poll, 5000);
+    return () => { if (timer) clearInterval(timer); };
+  }, [activeChat]);
 
   /** Scroll to bottom on new messages */
   useEffect(() => {
@@ -245,6 +225,7 @@ export default function ChatMain() {
           <>
             <ChatHeader chat={currentChat} />
             <ChatWindow
+              chatId={activeChat}
               messages={messages}
               onSendMessage={handleSendMessage}
               messagesEndRef={messagesEndRef}
