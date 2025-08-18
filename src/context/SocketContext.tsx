@@ -20,8 +20,15 @@ export function SocketProvider({ children }: SocketProviderProps) {
   const [isConnected, setIsConnected] = useState(false);
 
   useEffect(() => {
-    // Initialize socket connection
-    const socketInstance = io(process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3001', {
+    const url = process.env.NEXT_PUBLIC_SOCKET_URL;
+    // Only initialize if a valid absolute URL is provided
+    if (!url || !/^https?:\/\//.test(url)) {
+      setSocket(null);
+      setIsConnected(false);
+      return;
+    }
+
+    const socketInstance = io(url, {
       withCredentials: true,
       autoConnect: true,
     });
