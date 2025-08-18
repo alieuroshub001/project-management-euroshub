@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { IChatDocument, IMessage } from '@/types/chat';
 // IApiResponse not needed here
@@ -19,7 +19,7 @@ export default function ChatMain() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   /** Fetch chats safely */
-  const fetchChats = async (showLoading = false) => {
+  const fetchChats = useCallback(async (showLoading = false) => {
     if (!session?.user) {
       console.log('No session available');
       return;
@@ -55,7 +55,7 @@ export default function ChatMain() {
     } finally {
       if (showLoading) setLoading(false);
     }
-  };
+  }, [session?.user, activeChat]);
 
   // Initial fetch
   useEffect(() => {
@@ -63,7 +63,7 @@ export default function ChatMain() {
       console.log('Session available, fetching chats');
       fetchChats(true);
     }
-  }, [session?.user]);
+  }, [session?.user, fetchChats]);
 
   // Listen for refresh events
   useEffect(() => {
@@ -74,7 +74,7 @@ export default function ChatMain() {
 
     window.addEventListener('refreshChats', handleRefresh);
     return () => window.removeEventListener('refreshChats', handleRefresh);
-  }, [session]);
+  }, [session, fetchChats]);
 
   /** Fetch messages for the active chat */
   useEffect(() => {
@@ -172,10 +172,10 @@ export default function ChatMain() {
     }
   };
 
-  const refreshChats = () => {
+  const refreshChats = useCallback(() => {
     console.log('Manual refresh triggered');
     fetchChats(false);
-  };
+  }, [fetchChats]);
 
   if (loading) {
     return (
