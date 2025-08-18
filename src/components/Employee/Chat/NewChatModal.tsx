@@ -130,10 +130,7 @@ export default function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
 
       const response = await fetchApi<IApiResponse<any>>('/api/chat', {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestBody),
+        body: requestBody,
       });
 
       console.log('Chat creation response:', response);
