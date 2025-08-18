@@ -1,12 +1,12 @@
 // src/app/api/chat/[chatId]/media/route.ts
 
-import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { Message, UserChatSettings } from '@/models/Chat';
+import User from '@/models/User';
 import { IApiResponse } from '@/types';
 import mongoose from 'mongoose';
-import User from '@/models/User';
+import { getServerSession } from 'next-auth';
+import { NextResponse } from 'next/server';
 
 // ----------------------
 // Types
@@ -33,10 +33,11 @@ interface IAttachment {
   toObject: () => Omit<IAttachment, 'toObject'>;
 }
 
+// Updated RouteParams interface for Next.js 15
 interface RouteParams {
-  params: {
+  params: Promise<{
     chatId: string;
-  };
+  }>;
 }
 
 // ----------------------
@@ -69,7 +70,8 @@ export async function GET(
   context: RouteParams
 ) {
   try {
-    const { params } = context;
+    // Await the params since they're now a Promise in Next.js 15
+    const params = await context.params;
     const session = await getServerSession(authOptions);
 
     if (!session?.user) {
