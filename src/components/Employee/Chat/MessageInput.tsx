@@ -2,12 +2,14 @@ import { useState, useRef, useEffect } from 'react';
 import { FiPaperclip, FiSmile, FiSend } from 'react-icons/fi';
 import EmojiPicker from './EmojiPicker';
 import { useSocket } from '@/context/SocketContext';
+import { toast } from 'sonner';
 
 interface MessageInputProps {
+  chatId: string;
   onSend: (content: string, attachments?: any[]) => void;
 }
 
-export default function MessageInput({ onSend }: MessageInputProps) {
+export default function MessageInput({ chatId, onSend }: MessageInputProps) {
   const [message, setMessage] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [attachments, setAttachments] = useState<any[]>([]);
@@ -29,16 +31,43 @@ export default function MessageInput({ onSend }: MessageInputProps) {
     }
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      const files = Array.from(e.target.files).map(file => ({
-        url: URL.createObjectURL(file),
-        type: file.type.split('/')[0] as 'image' | 'video' | 'audio' | 'document',
-        name: file.name,
-        file
-      }));
-      setAttachments(prev => [...prev, ...files]);
-    }
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+
+    const files = Array.from(e.target.files);
+    const formUploads = files.map(async (file) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('folder', 'chat');
+      try {
+        const res = await fetch('/api/cloudinary/upload', {
+          method: 'POST',
+          body: formData,
+        });
+        const json = await res.json();
+        if (!json.success) throw new Error(json.message || 'Upload failed');
+        return {
+          url: json.data.secure_url,
+          secure_url: json.data.secure_url,
+          public_id: json.data.public_id,
+          original_filename: json.data.original_filename,
+          format: json.data.format,
+          bytes: json.data.bytes,
+          type: json.data.type as 'image' | 'document',
+          resource_type: json.data.resource_type,
+          name: json.data.name,
+        };
+      } catch (err) {
+        toast.error(`Failed to upload ${file.name}`);
+        return null;
+      }
+    });
+
+    const results = await Promise.all(formUploads);
+    const valid = results.filter(Boolean) as any[];
+    if (valid.length > 0) setAttachments((prev) => [...prev, ...valid]);
+    // reset input
+    e.currentTarget.value = '';
   };
 
   const removeAttachment = (index: number) => {
@@ -46,12 +75,21 @@ export default function MessageInput({ onSend }: MessageInputProps) {
   };
 
   useEffect(() => {
-    if (!socket) return;
-
-    if (message) {
-      socket.emit('typing');
-    }
-  }, [message, socket]);
+    const controller = new AbortController();
+    const sendTyping = async () => {
+      try {
+        if (!message.trim()) return;
+        await fetch(`/api/chat/${chatId}/typing`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ isTyping: true }),
+          signal: controller.signal,
+        });
+      } catch {}
+    };
+    sendTyping();
+    return () => controller.abort();
+  }, [message, chatId]);
 
   return (
     <div className="relative">

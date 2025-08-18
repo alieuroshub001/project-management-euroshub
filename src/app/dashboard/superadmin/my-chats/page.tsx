@@ -2,12 +2,10 @@
 
 import { useState } from 'react';
 import { useSession } from 'next-auth/react';
-import { useSocket } from '@/context/SocketContext';
 import ChatMain from '@/components/Employee/Chat/ChatMain';
 
 export default function ChatPage() {
   const { data: session } = useSession();
-  const socket = useSocket();
 
   if (!session) {
     return (
@@ -23,7 +21,7 @@ export default function ChatPage() {
         <h1 className="text-2xl font-bold">Messages</h1>
       </div>
       <div className="flex-1 overflow-hidden">
-        <ChatMain socket={socket.socket} />
+        <ChatMain />
       </div>
     </div>
   );

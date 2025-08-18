@@ -2,6 +2,7 @@
 
 import { SessionProvider } from 'next-auth/react';
 import type { Session } from 'next-auth';
+import { SocketProvider } from '@/context/SocketContext';
 
 type Props = {
   children: React.ReactNode;
@@ -9,5 +10,9 @@ type Props = {
 };
 
 export default function SessionProviderWrapper({ children, session }: Props) {
-  return <SessionProvider session={session}>{children}</SessionProvider>;
+  return (
+    <SessionProvider session={session}>
+      <SocketProvider>{children}</SocketProvider>
+    </SessionProvider>
+  );
 }

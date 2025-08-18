@@ -3,38 +3,34 @@ import { IMessage } from '@/types/chat';
 import MessageBubble from './MessageBubble';
 import MessageInput from './MessageInput';
 import TypingIndicator from './TypingIndicator';
-import { useSocket } from '@/context/SocketContext';
 
 interface ChatWindowProps {
+  chatId: string;
   messages: IMessage[];
   onSendMessage: (content: string, attachments?: any[]) => void;
   messagesEndRef: React.RefObject<HTMLDivElement>;
 }
 
-export default function ChatWindow({ messages, onSendMessage, messagesEndRef }: ChatWindowProps) {
+export default function ChatWindow({ chatId, messages, onSendMessage, messagesEndRef }: ChatWindowProps) {
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
-  const socket = useSocket();
   const windowRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!socket) return;
-
-    const handleTyping = (userId: string) => {
-      setTypingUsers(prev => 
-        prev.includes(userId) ? prev : [...prev, userId]
-      );
-      
-      setTimeout(() => {
-        setTypingUsers(prev => prev.filter(id => id !== userId));
-      }, 3000);
+    let timer: ReturnType<typeof setInterval> | null = null;
+    const fetchTyping = async () => {
+      try {
+        const res = await fetch(`/api/chat/${chatId}/typing`);
+        const json = await res.json();
+        if (json?.success && Array.isArray(json.data)) {
+          const ids = json.data.map((t: any) => t.userId?._id || t.userId);
+          setTypingUsers(ids);
+        }
+      } catch {}
     };
-
-    socket.on('userTyping', handleTyping);
-
-    return () => {
-      socket.off('userTyping', handleTyping);
-    };
-  }, [socket]);
+    fetchTyping();
+    timer = setInterval(fetchTyping, 3000);
+    return () => { if (timer) clearInterval(timer); };
+  }, [chatId]);
 
   const handleSend = (content: string, attachments: any[] = []) => {
     if (content.trim() || attachments.length > 0) {
@@ -63,7 +59,7 @@ export default function ChatWindow({ messages, onSendMessage, messagesEndRef }: 
       <TypingIndicator users={typingUsers} />
       
       <div className="p-4 border-t">
-        <MessageInput onSend={handleSend} />
+        <MessageInput chatId={chatId} onSend={handleSend} />
       </div>
     </div>
   );
