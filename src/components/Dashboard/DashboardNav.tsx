@@ -44,7 +44,7 @@ export default function DashboardNav({ role }: DashboardNavProps) {
     superadmin: [
       { href: '/dashboard/projects', name: 'Project Management', icon: FolderKanban },
       { href: '/dashboard/hr', name: 'HR Management', icon: Users },
-      { href: '/dashboard/communication', name: 'Communication', icon: MessageSquare },
+      { href: '/dashboard/superadmin/my-chats', name: 'Communication', icon: MessageSquare },
       { href: '/dashboard/superadmin/tracker', name: 'Time Tracking', icon: Clock },
       { href: '/dashboard/reporting', name: 'Reports & Analytics', icon: BarChart3 },
       { href: '/dashboard/admin', name: 'System Administration', icon: Settings },
@@ -74,7 +74,7 @@ export default function DashboardNav({ role }: DashboardNavProps) {
       { href: '/dashboard/employee/my-profile', name: 'My Profile', icon: User },
       { href: '/dashboard/employee/my-leaves', name: 'Leave Requests', icon: Calendar },
       { href: '/dashboard/employee/my-attendance', name: 'My Attendance', icon: Clock },
-      { href: '/dashboard/employee/communication', name: 'Communication', icon: MessageSquare },
+      { href: '/dashboard/employee/my-chats', name: 'Communication', icon: MessageSquare },
     ],
     client: [
       { href: '/dashboard/client/client-projects', name: 'My Projects', icon: FolderKanban },

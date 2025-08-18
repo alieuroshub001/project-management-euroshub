@@ -1,99 +1,9 @@
-// models/Chat.ts - Fixed Chat Mongoose Models with proper array types
-import mongoose, { Schema, Model, Document, Types } from 'mongoose';
-import {
-  IChat,
-  IChatParticipant,
-  IChatMessage,
-  IChatUnreadCount,
-  IChatTypingIndicator,
-  IChatDraft,
-  IChatCall,
-  IChatThread,
-  IChatFolder,
-  ChatType,
-  MessageType,
-  MessageStatus,
-  ParticipantRole,
-  IAttachment,
-  IMessageMetadata
-} from '@/types/chat';
+// models/Chat.ts
+import mongoose, { Schema, Model, Document } from 'mongoose';
+import { IUser } from '@/types';
 
-// Clean up existing models to avoid conflicts
-const modelsToClean = [
-  'Chat', 'ChatMessage', 'ChatUnreadCount', 'ChatTypingIndicator', 
-  'ChatDraft', 'ChatCall', 'ChatThread', 'ChatFolder'
-];
-
-modelsToClean.forEach(modelName => {
-  if (mongoose.models[modelName]) {
-    delete mongoose.models[modelName];
-  }
-});
-
-// Define proper transform function types
-interface TransformReturnType {
-  id: string;
-  [key: string]: unknown;
-}
-
-// Document interfaces extending Mongoose Document with timestamps
-interface IChatDoc extends IChat, Document {
-  _id: Types.ObjectId;
-  createdAt: Date;
-  updatedAt: Date;
-  // Instance methods
-  isUserAdmin(userId: string): boolean;
-  isUserModerator(userId: string): boolean;
-  canUserPost(userId: string): boolean;
-  getParticipant(userId: string): IChatParticipant | undefined;
-}
-
-interface IChatMessageDoc extends IChatMessage, Document {
-  _id: Types.ObjectId;
-  createdAt: Date;
-  updatedAt: Date;
-  // Instance methods
-  canUserEdit(userId: string): boolean;
-  canUserDelete(userId: string, userRole?: string): boolean;
-  addReaction(emoji: string, userId: string): Promise<IChatMessageDoc>;
-}
-
-interface IChatUnreadCountDoc extends IChatUnreadCount, Document {
-  _id: Types.ObjectId;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-interface IChatTypingIndicatorDoc extends IChatTypingIndicator, Document {
-  _id: Types.ObjectId;
-}
-
-interface IChatDraftDoc extends IChatDraft, Document {
-  _id: Types.ObjectId;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-interface IChatCallDoc extends IChatCall, Document {
-  _id: Types.ObjectId;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-interface IChatThreadDoc extends IChatThread, Document {
-  _id: Types.ObjectId;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-interface IChatFolderDoc extends IChatFolder, Document {
-  _id: Types.ObjectId;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-// Enhanced Attachment Schema
-const AttachmentSchema = new Schema<IAttachment>({
+// Attachment Schema (reusable)
+const AttachmentSchema = new Schema({
   url: { type: String, required: true },
   name: { type: String, required: true },
   public_id: { type: String, required: true },
@@ -101,763 +11,401 @@ const AttachmentSchema = new Schema<IAttachment>({
   original_filename: { type: String, required: true },
   format: { type: String, required: true },
   bytes: { type: Number, required: true },
-  type: {
-    type: String,
-    enum: ['image', 'video', 'audio', 'document'],
-    required: true
+  type: { 
+    type: String, 
+    enum: ['image', 'video', 'audio', 'document', 'link'],
+    required: true 
   },
   resource_type: { type: String, required: true },
-  width: { type: Number },
-  height: { type: Number },
-  duration: { type: Number }, // For audio/video
-  thumbnailUrl: { type: String } // Cloudinary video thumbnails
-}, { _id: false });
-
-// Message Metadata Schema
-const MessageMetadataSchema = new Schema<IMessageMetadata>({
-  location: {
-    latitude: { type: Number },
-    longitude: { type: Number },
-    address: { type: String },
-    name: { type: String }
-  },
-  contact: {
-    name: { type: String },
-    phoneNumbers: [String],
-    emails: [String]
-  },
-  poll: {
-    question: { type: String },
-    options: [String],
-    allowMultiple: { type: Boolean, default: false },
-    votes: {
-      type: Map,
-      of: [String], // userIds as strings
-      default: new Map()
-    }
-  },
-  systemAction: {
-    type: {
-      type: String,
-      enum: ['user_joined', 'user_left', 'user_added', 'user_removed', 'chat_created', 'name_changed', 'avatar_changed']
-    },
-    actorId: { type: String },
-    targetIds: [String],
-    data: { type: Schema.Types.Mixed } as { type: typeof Schema.Types.Mixed }
-  },
-  forwarded: {
-    originalMessageId: { type: String },
-    originalChatId: { type: String },
-    originalSenderId: { type: String },
-    forwardedAt: { type: Date }
+  thumbnailUrl: { type: String },
+  dimensions: {
+    width: { type: Number },
+    height: { type: Number }
   }
 }, { _id: false });
 
-// Enhanced Participant Schema
-const ParticipantSchema = new Schema<IChatParticipant>({
-  userId: {
-    type: Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
-  },
-  role: {
-    type: String,
-    enum: ['member', 'admin', 'owner', 'moderator'] as ParticipantRole[],
-    default: 'member'
-  },
-  joinedAt: {
-    type: Date,
-    default: Date.now
-  },
-  lastRead: { type: Date },
-  lastSeen: { type: Date },
-  mutedUntil: { type: Date },
-  pinnedMessages: [{ type: Schema.Types.ObjectId, ref: 'ChatMessage' }], // Regular array
-  customNotificationSettings: {
-    muted: { type: Boolean, default: false },
-    mentions: { type: Boolean, default: true },
-    replies: { type: Boolean, default: true }
-  },
-  isArchived: { type: Boolean, default: false },
-  addedBy: { type: Schema.Types.ObjectId, ref: 'User' }
+// Reaction Schema (subdocument)
+const ReactionSchema = new Schema({
+  emoji: { type: String, required: true },
+  userIds: [{ type: Schema.Types.ObjectId, ref: 'User' }]
 }, { _id: false });
 
-// Enhanced Chat Schema
-const ChatSchema = new Schema<IChatDoc>({
-  name: {
-    type: String,
-    trim: true,
-    required: function(this: IChatDoc) {
-      return this.type !== 'direct';
-    }
-  },
-  description: {
-    type: String,
-    trim: true,
-    maxlength: 500
-  },
-  type: {
-    type: String,
-    enum: ['direct', 'group', 'channel', 'announcement'] as ChatType[],
-    required: true
-  },
-  participants: {
-    type: [ParticipantSchema], // Regular array instead of DocumentArray
-    required: true,
-    validate: {
-      validator: function(this: IChatDoc, participants: IChatParticipant[]) {
-        if (this.type === 'direct' && participants.length !== 2) {
-          return false;
-        }
-        return participants.length > 0;
-      },
-      message: 'Invalid number of participants for chat type'
-    }
-  },
-  createdBy: {
-    type: Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
-  },
-  admins: [{ // Regular array instead of Types.Array
-    type: Schema.Types.ObjectId,
-    ref: 'User'
-  }],
-  moderators: [{ // Regular array instead of Types.Array
-    type: Schema.Types.ObjectId,
-    ref: 'User'
-  }],
-  
-  // Chat appearance
-  avatar: { type: String, trim: true },
-  theme: { type: String, default: 'default' },
-  wallpaper: { type: String },
-  
-  // Chat settings
-  isArchived: { type: Boolean, default: false },
-  settings: {
-    allowMemberInvites: { type: Boolean, default: true },
-    allowMemberExit: { type: Boolean, default: true },
-    onlyAdminsCanPost: { type: Boolean, default: false },
-    messageRetention: { type: Number }, // Days
-    allowFileSharing: { type: Boolean, default: true },
-    maxFileSize: { type: Number, default: 50 * 1024 * 1024 }, // 50MB
-    allowedFileTypes: {
-      type: [String],
-      default: ['image', 'video', 'audio', 'document']
-    },
-    readReceipts: { type: Boolean, default: true },
-    typingIndicators: { type: Boolean, default: true }
-  },
-  
-  // Chat metadata
-  lastMessage: {
-    messageId: { type: Schema.Types.ObjectId, ref: 'ChatMessage' },
-    content: { type: String },
-    sentAt: { type: Date },
-    senderId: { type: Schema.Types.ObjectId, ref: 'User' },
-    type: {
-      type: String,
-      enum: ['text', 'image', 'file', 'video', 'audio', 'system', 'location', 'contact', 'poll', 'reply', 'forward'] as MessageType[]
-    }
-  },
-  pinnedMessages: [{ // Regular array instead of Types.Array
-    type: Schema.Types.ObjectId,
-    ref: 'ChatMessage'
-  }],
-  
-  // Chat statistics
-  messageCount: { type: Number, default: 0 },
-  activeParticipants: { type: Number, default: 0 },
-  
-  // For public channels
-  isPublic: { type: Boolean, default: false },
-  inviteLink: { type: String, unique: true, sparse: true },
-  inviteLinkExpiry: { type: Date },
-  tags: [String]
-}, {
-  timestamps: true,
-  toJSON: {
-    virtuals: true,
-    transform: (_doc: Document, ret: Record<string, unknown>): TransformReturnType => {
-      const transformed = ret as TransformReturnType;
-      transformed.id = (ret._id as Types.ObjectId).toString();
-      delete transformed._id;
-      delete transformed.__v;
-      return transformed;
-    }
-  }
-});
-
-// Enhanced Message Schema
-const ChatMessageSchema = new Schema<IChatMessageDoc>({
-  chatId: {
-    type: Schema.Types.ObjectId,
-    ref: 'Chat',
-    required: true
-  },
-  senderId: {
-    type: Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
-  },
-  content: {
-    type: String,
-    required: function(this: IChatMessageDoc) {
-      return this.type === 'text' && !this.metadata;
-    },
-    trim: true,
-    maxlength: 4000 // Like WhatsApp
-  },
-  type: {
-    type: String,
-    enum: ['text', 'image', 'file', 'video', 'audio', 'system', 'location', 'contact', 'poll', 'reply', 'forward'] as MessageType[],
-    required: true,
-    default: 'text'
-  },
+// Message Schema
+const MessageSchema = new Schema({
+  content: { type: String },
+  sender: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+  channelId: { type: Schema.Types.ObjectId, ref: 'Chat' },
+  conversationId: { type: Schema.Types.ObjectId, ref: 'Chat' },
+  attachments: [AttachmentSchema],
+  readBy: [{ type: Schema.Types.ObjectId, ref: 'User' }],
+  reactions: [ReactionSchema],
   status: {
     type: String,
-    enum: ['sending', 'sent', 'delivered', 'read', 'failed'] as MessageStatus[],
-    default: 'sending'
+    enum: ['sent', 'delivered', 'read', 'failed'],
+    default: 'sent'
   },
-  
-  // Enhanced message features
-  attachments: [AttachmentSchema],
-  metadata: MessageMetadataSchema,
-  
-  // Message interactions
-  reactions: {
-    type: Map,
-    of: [Schema.Types.ObjectId],
-    default: new Map()
-  },
-  replyTo: {
-    type: Schema.Types.ObjectId,
-    ref: 'ChatMessage'
-  },
-  mentionedUsers: [{ // Regular array instead of Types.Array
-    type: Schema.Types.ObjectId,
-    ref: 'User'
-  }],
-  
-  // Message state
-  isEdited: { type: Boolean, default: false },
-  editedAt: { type: Date },
+  replyTo: { type: Schema.Types.ObjectId, ref: 'Message' },
   deleted: { type: Boolean, default: false },
   deletedAt: { type: Date },
-  deletedFor: [{ type: Schema.Types.ObjectId, ref: 'User' }], // Regular array
-  
-  // Message visibility and delivery
-  readBy: {
-    type: Map,
-    of: Date,
-    default: new Map()
-  },
-  deliveredTo: [{ // Regular array instead of Types.Array
-    type: Schema.Types.ObjectId,
-    ref: 'User'
-  }],
-  
-  // Thread support
-  threadReplies: { type: Number, default: 0 },
-  lastThreadReplyAt: { type: Date },
-  
-  // Message priority
-  priority: {
-    type: String,
-    enum: ['low', 'normal', 'high', 'urgent'],
-    default: 'normal'
-  }
-}, {
-  timestamps: true,
-  toJSON: {
-    virtuals: true,
-    transform: (_doc: Document, ret: Record<string, unknown>): TransformReturnType => {
-      const transformed = ret as TransformReturnType;
-      transformed.id = (ret._id as Types.ObjectId).toString();
-      delete transformed._id;
-      delete transformed.__v;
-      return transformed;
+  deletedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+  edited: { type: Boolean, default: false },
+  metadata: {
+    linkPreview: {
+      url: { type: String },
+      title: { type: String },
+      description: { type: String },
+      image: { type: String },
+      domain: { type: String }
     }
   }
-});
-
-// Supporting schemas
-const ChatUnreadCountSchema = new Schema<IChatUnreadCountDoc>({
-  chatId: {
-    type: Schema.Types.ObjectId,
-    ref: 'Chat',
-    required: true
-  },
-  userId: {
-    type: Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
-  },
-  count: {
-    type: Number,
-    default: 0,
-    min: 0
-  },
-  lastMessageAt: { type: Date },
-  mentionCount: { type: Number, default: 0, min: 0 }
-}, {
+}, { 
   timestamps: true,
-  toJSON: {
-    virtuals: true,
-    transform: (_doc: Document, ret: Record<string, unknown>): TransformReturnType => {
-      const transformed = ret as TransformReturnType;
-      transformed.id = (ret._id as Types.ObjectId).toString();
-      delete transformed._id;
-      delete transformed.__v;
-      return transformed;
-    }
-  }
+  toJSON: { virtuals: true }
 });
 
-const ChatTypingIndicatorSchema = new Schema<IChatTypingIndicatorDoc>({
-  chatId: {
-    type: Schema.Types.ObjectId,
-    ref: 'Chat',
-    required: true
-  },
-  userId: {
-    type: Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
-  },
-  isTyping: {
-    type: Boolean,
-    required: true
-  },
-  lastActive: {
-    type: Date,
-    default: Date.now
-  }
+// Chat Schema (handles both channels and direct messages)
+const ChatSchema = new Schema({
+  name: { type: String },
+  description: { type: String },
+  isPrivate: { type: Boolean, default: false },
+  isGroup: { type: Boolean, default: true },
+  createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+  members: [{ type: Schema.Types.ObjectId, ref: 'User' }],
+  topic: { type: String },
+  avatar: { type: String },
+  pinnedMessages: [{ type: Schema.Types.ObjectId, ref: 'Message' }],
+  participants: [{ type: Schema.Types.ObjectId, ref: 'User' }],
+  lastMessage: { type: Schema.Types.ObjectId, ref: 'Message' }
+}, { 
+  timestamps: true
 });
 
-const ChatDraftSchema = new Schema<IChatDraftDoc>({
-  chatId: {
-    type: Schema.Types.ObjectId,
-    ref: 'Chat',
-    required: true
-  },
-  userId: {
-    type: Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
-  },
+// User Chat Settings Schema
+const UserChatSettingsSchema = new Schema({
+  userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+  chatId: { type: Schema.Types.ObjectId, ref: 'Chat', required: true },
+  lastRead: { type: Date },
+  notificationsEnabled: { type: Boolean, default: true },
+  muteUntil: { type: Date },
+  isFavorite: { type: Boolean, default: false }
+}, { timestamps: true });
+
+// Typing Indicator Schema
+const TypingIndicatorSchema = new Schema({
+  userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+  chatId: { type: Schema.Types.ObjectId, ref: 'Chat' },
+  isTyping: { type: Boolean, required: true },
+  lastActive: { type: Date, default: Date.now }
+}, { timestamps: true });
+
+// Message Draft Schema
+const MessageDraftSchema = new Schema({
+  userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+  chatId: { type: Schema.Types.ObjectId, ref: 'Chat' },
   content: { type: String, required: true },
-  attachments: [AttachmentSchema],
-  replyTo: { type: Schema.Types.ObjectId, ref: 'ChatMessage' }
-}, {
-  timestamps: true
-});
+  attachments: [{
+    url: { type: String, required: true },
+    type: { 
+      type: String, 
+      enum: ['image', 'video', 'audio', 'document', 'link'],
+      required: true 
+    }
+  }]
+}, { timestamps: true });
 
-const ChatCallSchema = new Schema<IChatCallDoc>({
-  chatId: {
-    type: Schema.Types.ObjectId,
-    ref: 'Chat',
-    required: true
-  },
-  initiatedBy: {
-    type: Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
-  },
-  participants: [{ // Regular array
-    type: Schema.Types.ObjectId,
-    ref: 'User'
-  }],
-  type: {
-    type: String,
-    enum: ['voice', 'video'],
-    required: true
-  },
-  status: {
-    type: String,
-    enum: ['initiated', 'ringing', 'ongoing', 'ended', 'missed', 'declined'],
-    default: 'initiated'
-  },
-  startedAt: { type: Date },
-  endedAt: { type: Date },
-  duration: { type: Number } // seconds
-}, {
-  timestamps: true
-});
+// Starred Message Schema
+const StarredMessageSchema = new Schema({
+  userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+  messageId: { type: Schema.Types.ObjectId, ref: 'Message', required: true },
+  chatId: { type: Schema.Types.ObjectId, ref: 'Chat' },
+  tags: [{ type: String }]
+}, { timestamps: true });
 
-const ChatThreadSchema = new Schema<IChatThreadDoc>({
-  originalMessageId: {
-    type: Schema.Types.ObjectId,
-    ref: 'ChatMessage',
-    required: true,
-    unique: true
-  },
-  chatId: {
-    type: Schema.Types.ObjectId,
-    ref: 'Chat',
-    required: true
-  },
-  participants: [{ // Regular array
-    type: Schema.Types.ObjectId,
-    ref: 'User'
-  }],
-  lastReplyAt: { type: Date, required: true },
-  replyCount: { type: Number, default: 0 }
-}, {
-  timestamps: true
-});
+// Interfaces
+interface IAttachment extends Document {
+  url: string;
+  name: string;
+  public_id: string;
+  secure_url: string;
+  original_filename: string;
+  format: string;
+  bytes: number;
+  type: 'image' | 'video' | 'audio' | 'document' | 'link';
+  resource_type: string;
+  thumbnailUrl?: string;
+  dimensions?: {
+    width?: number;
+    height?: number;
+  };
+}
 
-const ChatFolderSchema = new Schema<IChatFolderDoc>({
-  userId: {
-    type: Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
-  },
-  name: { type: String, required: true, trim: true },
-  chatIds: [{ // Regular array
-    type: Schema.Types.ObjectId,
-    ref: 'Chat'
-  }],
-  color: { type: String, default: '#007bff' },
-  icon: { type: String }
-}, {
-  timestamps: true
-});
+interface IReaction extends Document {
+  emoji: string;
+  userIds: mongoose.Types.ObjectId[];
+}
 
-// Indexes for better performance
-ChatSchema.index({ type: 1 });
-ChatSchema.index({ 'participants.userId': 1 });
-ChatSchema.index({ createdAt: -1 });
-ChatSchema.index({ updatedAt: -1 });
-ChatSchema.index({ isPublic: 1, type: 1 });
-ChatSchema.index({ tags: 1 });
-ChatSchema.index({ inviteLink: 1 }, { sparse: true });
+interface IMessage extends Document {
+  content?: string;
+  sender: mongoose.Types.ObjectId | IUser;
+  channelId?: mongoose.Types.ObjectId;
+  conversationId?: mongoose.Types.ObjectId;
+  attachments: IAttachment[];
+  readBy: mongoose.Types.ObjectId[];
+  reactions: IReaction[];
+  status: 'sent' | 'delivered' | 'read' | 'failed';
+  replyTo?: mongoose.Types.ObjectId;
+  deleted: boolean;
+  deletedAt?: Date;
+  deletedBy?: mongoose.Types.ObjectId;
+  edited: boolean;
+  metadata?: {
+    linkPreview?: {
+      url?: string;
+      title?: string;
+      description?: string;
+      image?: string;
+      domain?: string;
+    };
+  };
+  createdAt: Date;
+  updatedAt: Date;
+}
 
-ChatMessageSchema.index({ chatId: 1, createdAt: -1 });
-ChatMessageSchema.index({ senderId: 1 });
-ChatMessageSchema.index({ type: 1 });
-ChatMessageSchema.index({ 'metadata.systemAction.type': 1 });
-ChatMessageSchema.index({ mentionedUsers: 1 });
-ChatMessageSchema.index({ replyTo: 1 });
-ChatMessageSchema.index({ deleted: 1 });
+interface IChat extends Document {
+  name?: string;
+  description?: string;
+  isPrivate: boolean;
+  isGroup: boolean;
+  createdBy: mongoose.Types.ObjectId | IUser;
+  members: mongoose.Types.ObjectId[];
+  topic?: string;
+  avatar?: string;
+  pinnedMessages: mongoose.Types.ObjectId[];
+  participants: mongoose.Types.ObjectId[];
+  lastMessage?: mongoose.Types.ObjectId | IMessage;
+  createdAt: Date;
+  updatedAt: Date;
+}
 
-ChatUnreadCountSchema.index({ userId: 1, chatId: 1 }, { unique: true });
-ChatUnreadCountSchema.index({ userId: 1 });
+interface IChatDocument extends IChat {
+  unreadCount?: number;
+}
 
-ChatTypingIndicatorSchema.index({ chatId: 1, userId: 1 }, { unique: true });
-ChatTypingIndicatorSchema.index({ lastActive: 1 }, { expireAfterSeconds: 30 });
+interface IUserChatSettings extends Document {
+  userId: mongoose.Types.ObjectId;
+  chatId: mongoose.Types.ObjectId;
+  lastRead?: Date;
+  notificationsEnabled: boolean;
+  muteUntil?: Date;
+  isFavorite: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
 
-ChatDraftSchema.index({ userId: 1, chatId: 1 }, { unique: true });
+interface ITypingIndicator extends Document {
+  userId: mongoose.Types.ObjectId;
+  chatId?: mongoose.Types.ObjectId;
+  isTyping: boolean;
+  lastActive: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
 
-ChatCallSchema.index({ chatId: 1, createdAt: -1 });
-ChatCallSchema.index({ participants: 1, status: 1 });
+interface IMessageDraft extends Document {
+  userId: mongoose.Types.ObjectId;
+  chatId?: mongoose.Types.ObjectId;
+  content: string;
+  attachments: Array<{
+    url: string;
+    type: 'image' | 'video' | 'audio' | 'document' | 'link';
+  }>;
+  createdAt: Date;
+  updatedAt: Date;
+}
 
-ChatThreadSchema.index({ originalMessageId: 1 }, { unique: true });
-ChatThreadSchema.index({ chatId: 1, lastReplyAt: -1 });
+interface IStarredMessage extends Document {
+  userId: mongoose.Types.ObjectId;
+  messageId: mongoose.Types.ObjectId;
+  chatId?: mongoose.Types.ObjectId;
+  tags?: string[];
+  createdAt: Date;
+  updatedAt: Date;
+}
 
-ChatFolderSchema.index({ userId: 1 });
+// Static methods interface
+interface IChatModel extends Model<IChatDocument> {
+  findOrCreateDirectMessage(user1: string, user2: string): Promise<IChatDocument>;
+  getUserChannels(userId: string): Promise<IChatDocument[]>;
+  getDirectMessages(userId: string): Promise<IChatDocument[]>;
+  searchMessages(userId: string, query: string): Promise<IMessage[]>;
+}
 
-// Virtual fields
-ChatSchema.virtual('messages', {
-  ref: 'ChatMessage',
-  localField: '_id',
-  foreignField: 'chatId'
-});
+// Implement static methods
+ChatSchema.statics.findOrCreateDirectMessage = async function(
+  user1: string, 
+  user2: string
+): Promise<IChatDocument> {
+  const participants = [user1, user2].sort();
+  
+  let chat = await this.findOne({
+    isGroup: false,
+    participants: { $all: participants, $size: 2 }
+  }).populate('lastMessage');
+  
+  if (!chat) {
+    chat = await this.create({
+      isGroup: false,
+      isPrivate: true,
+      createdBy: participants[0],
+      participants,
+      members: participants
+    });
+  }
+  
+  return chat;
+};
 
-// Middleware
-ChatMessageSchema.pre('save', async function(next) {
-  // Auto-update chat's lastMessage and messageCount
-  if (this.isNew && !this.deleted) {
-    await this.model('Chat').findByIdAndUpdate(
-      this.chatId,
-      {
-        $set: {
-          'lastMessage.messageId': this._id,
-          'lastMessage.content': this.content,
-          'lastMessage.sentAt': this.createdAt || new Date(),
-          'lastMessage.senderId': this.senderId,
-          'lastMessage.type': this.type
-        },
-        $inc: { messageCount: 1 }
+ChatSchema.statics.getUserChannels = function(
+  userId: string
+): Promise<IChatDocument[]> {
+  return this.find({
+    isGroup: true,
+    members: userId
+  })
+  .populate('lastMessage')
+  .populate('createdBy', 'name email profileImage')
+  .populate('members', 'name email profileImage')
+  .sort({ updatedAt: -1 })
+  .exec();
+};
+
+ChatSchema.statics.getDirectMessages = function(
+  userId: string
+): Promise<IChatDocument[]> {
+  return this.find({
+    isGroup: false,
+    participants: userId
+  })
+  .populate('lastMessage')
+  .populate('participants', 'name email profileImage')
+  .populate('createdBy', 'name email profileImage')
+  .sort({ updatedAt: -1 })
+  .exec();
+};
+
+ChatSchema.statics.searchMessages = function(
+  userId: string, 
+  query: string
+): Promise<IMessage[]> {
+  return this.aggregate([
+    {
+      $match: {
+        $or: [
+          { members: new mongoose.Types.ObjectId(userId) },
+          { participants: new mongoose.Types.ObjectId(userId) }
+        ]
       }
-    );
+    },
+    {
+      $lookup: {
+        from: 'messages',
+        let: { chatId: '$_id' },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $or: [
+                  { $eq: ['$channelId', '$$chatId'] },
+                  { $eq: ['$conversationId', '$$chatId'] }
+                ]
+              },
+              content: { $regex: query, $options: 'i' }
+            }
+          }
+        ],
+        as: 'messages'
+      }
+    },
+    {
+      $unwind: '$messages'
+    },
+    {
+      $replaceRoot: { newRoot: '$messages' }
+    }
+  ]).exec();
+};
+
+// Validation middleware
+ChatSchema.pre('save', function(next) {
+  if (!this.isGroup && this.participants.length !== 2) {
+    return next(new Error('Direct messages must have exactly 2 participants'));
   }
   next();
 });
 
-// Static methods interfaces
-interface IChatModel extends Model<IChatDoc> {
-  findOrCreateDirectChat(user1: string, user2: string): Promise<IChatDoc>;
-  getUserChats(userId: string): Promise<IChatDoc[]>;
-  addParticipants(chatId: string, userIds: string[], addedBy: string): Promise<IChatDoc>;
-}
-
-interface IChatMessageModel extends Model<IChatMessageDoc> {
-  getChatMessages(chatId: string, limit?: number, before?: Date, userId?: string): Promise<IChatMessageDoc[]>;
-  markMessagesAsRead(chatId: string, userId: string): Promise<void>;
-  getThreadMessages(originalMessageId: string, limit?: number, before?: Date): Promise<IChatMessageDoc[]>;
-  searchMessages(chatId: string, searchTerm: string, limit?: number): Promise<IChatMessageDoc[]>;
-}
-
-// Static methods for Chat
-ChatSchema.statics.findOrCreateDirectChat = async function(user1: string, user2: string): Promise<IChatDoc> {
-  const existingChat = await this.findOne({
-    type: 'direct',
-    'participants.userId': { 
-      $all: [new Types.ObjectId(user1), new Types.ObjectId(user2)] 
-    }
-  }).populate('participants.userId', 'name email profileImage image');
-  
-  if (existingChat) return existingChat;
-  
-  const chat = new this({
-    type: 'direct',
-    participants: [
-      { userId: new Types.ObjectId(user1), role: 'member' },
-      { userId: new Types.ObjectId(user2), role: 'member' }
-    ],
-    createdBy: new Types.ObjectId(user1),
-    activeParticipants: 2,
-    admins: [] // Initialize as empty array
-  });
-  
-  return chat.save();
-};
-
-ChatSchema.statics.getUserChats = async function(userId: string): Promise<IChatDoc[]> {
-  return this.find({
-    'participants.userId': new Types.ObjectId(userId),
-    'participants.isArchived': { $ne: true }
-  })
-  .sort({ 'lastMessage.sentAt': -1 })
-  .populate('participants.userId', 'name email profileImage image')
-  .populate('lastMessage.senderId', 'name profileImage image');
-};
-
-ChatSchema.statics.addParticipants = async function(chatId: string, userIds: string[], addedBy: string): Promise<IChatDoc> {
-  const chat = await this.findById(chatId);
-  if (!chat) throw new Error('Chat not found');
-  
-  if (chat.type === 'direct') throw new Error('Cannot add participants to direct chat');
-  
-  // Check if user has permission to add participants
-  const isAdmin = chat.admins?.some((adminId: Types.ObjectId) => adminId.equals(new Types.ObjectId(addedBy))) || 
-                 chat.createdBy.equals(new Types.ObjectId(addedBy));
-  if (!isAdmin) throw new Error('Only admins can add participants');
-  
-  // Add new participants
-  const newParticipants = userIds.map(userId => ({
-    userId: new Types.ObjectId(userId),
-    role: 'member' as ParticipantRole,
-    joinedAt: new Date(),
-    addedBy: new Types.ObjectId(addedBy)
-  }));
-  
-  chat.participants.push(...newParticipants);
-  chat.activeParticipants += userIds.length;
-  return chat.save();
-};
-
-// Static methods for Messages
-ChatMessageSchema.statics.getChatMessages = async function(
-  chatId: string, 
-  limit: number = 50, 
-  before?: Date,
-  userId?: string
-): Promise<IChatMessageDoc[]> {
-  const query: Record<string, unknown> = { 
-    chatId: new Types.ObjectId(chatId),
-    deleted: false
-  };
-  
-  // Don't show messages deleted for this user
-  if (userId) {
-    query.deletedFor = { $ne: new Types.ObjectId(userId) };
+MessageSchema.pre('save', function(next) {
+  if (!this.content && (!this.attachments || this.attachments.length === 0)) {
+    return next(new Error('Message must have either content or attachments'));
   }
-  
-  if (before) {
-    query.createdAt = { $lt: before };
-  }
-  
-  return this.find(query)
-    .sort({ createdAt: -1 })
-    .limit(limit)
-    .populate('senderId', 'name profileImage image')
-    .populate('replyTo')
-    .populate('mentionedUsers', 'name');
-};
-
-ChatMessageSchema.statics.markMessagesAsRead = async function(chatId: string, userId: string): Promise<void> {
-  // Update unread count
-  await ChatUnreadCount.updateOne(
-    { chatId: new Types.ObjectId(chatId), userId: new Types.ObjectId(userId) },
-    { $set: { count: 0, mentionCount: 0, lastMessageAt: new Date() } },
-    { upsert: true }
-  );
-  
-  // Update last read timestamp in participant
-  await Chat.updateOne(
-    { _id: new Types.ObjectId(chatId), 'participants.userId': new Types.ObjectId(userId) },
-    { $set: { 'participants.$.lastRead': new Date() } }
-  );
-};
-
-// Additional static methods for enhanced functionality
-ChatMessageSchema.statics.getThreadMessages = async function(
-  originalMessageId: string,
-  limit: number = 20,
-  before?: Date
-): Promise<IChatMessageDoc[]> {
-  const query: Record<string, unknown> = {
-    replyTo: new Types.ObjectId(originalMessageId),
-    deleted: false
-  };
-  
-  if (before) {
-    query.createdAt = { $lt: before };
-  }
-  
-  return this.find(query)
-    .sort({ createdAt: 1 }) // Ascending order for thread replies
-    .limit(limit)
-    .populate('senderId', 'name profileImage image')
-    .populate('mentionedUsers', 'name');
-};
-
-ChatMessageSchema.statics.searchMessages = async function(
-  chatId: string,
-  searchTerm: string,
-  limit: number = 20
-): Promise<IChatMessageDoc[]> {
-  return this.find({
-    chatId: new Types.ObjectId(chatId),
-    deleted: false,
-    $text: { $search: searchTerm }
-  })
-  .sort({ score: { $meta: 'textScore' } })
-  .limit(limit)
-  .populate('senderId', 'name profileImage image');
-};
-
-// Add text search index for message content
-ChatMessageSchema.index({ content: 'text' });
-
-// Pre-save middleware for additional message processing
-ChatMessageSchema.pre('save', function(next) {
-  // Auto-extract mentions from content
-  if (this.type === 'text' && this.content) {
-    const mentionRegex = /@(\w+)/g;
-    const mentions: string[] = [];
-    let match;
-    
-    while ((match = mentionRegex.exec(this.content)) !== null) {
-      mentions.push(match[1]); // Extract username without @
-    }
-    
-    if (mentions.length > 0) {
-      // Note: You would need to resolve usernames to ObjectIds here
-      // This is just a placeholder for the logic - implement based on your needs
-      this.mentionedUsers = mentions.map(() => {
-        return new Types.ObjectId(); // Placeholder
-      }).filter(Boolean);
-    }
-  }
-  
-  // Set status to 'sent' if it was 'sending' and we're saving
-  if (this.status === 'sending' && this.isNew) {
-    this.status = 'sent';
-  }
-  
   next();
 });
 
-// Instance methods for Chat
-ChatSchema.methods.isUserAdmin = function(this: IChatDoc, userId: string): boolean {
-  return this.createdBy.equals(new Types.ObjectId(userId)) ||
-         this.admins.some(adminId => adminId.equals(new Types.ObjectId(userId)));
-};
+// Indexes for optimal performance
+ChatSchema.index({ isGroup: 1 });
+ChatSchema.index({ members: 1 });
+ChatSchema.index({ participants: 1 });
+ChatSchema.index({ isGroup: 1, members: 1 });
+ChatSchema.index({ isGroup: 1, participants: 1 });
+ChatSchema.index({ lastMessage: 1 });
+ChatSchema.index({ updatedAt: -1 });
 
-ChatSchema.methods.isUserModerator = function(this: IChatDoc, userId: string): boolean {
-  return this.isUserAdmin(userId) || 
-         Boolean(this.moderators && this.moderators.some(modId => modId.equals(new Types.ObjectId(userId))));
-};
+MessageSchema.index({ channelId: 1, createdAt: -1 });
+MessageSchema.index({ conversationId: 1, createdAt: -1 });
+MessageSchema.index({ sender: 1 });
+MessageSchema.index({ 'attachments.type': 1 });
+MessageSchema.index({ content: 'text' });
 
-ChatSchema.methods.canUserPost = function(this: IChatDoc, userId: string): boolean {
-  if (this.settings.onlyAdminsCanPost) {
-    return this.isUserAdmin(userId);
-  }
-  
-  // Check if user is a participant
-  return this.participants.some(participant => 
-    participant.userId.equals(new Types.ObjectId(userId))
-  );
-};
+UserChatSettingsSchema.index({ userId: 1, chatId: 1 }, { unique: true });
+UserChatSettingsSchema.index({ userId: 1, isFavorite: 1 });
 
-ChatSchema.methods.getParticipant = function(this: IChatDoc, userId: string) {
-  return this.participants.find(participant => 
-    participant.userId.equals(new Types.ObjectId(userId))
-  );
-};
+TypingIndicatorSchema.index({ chatId: 1, userId: 1 }, { unique: true });
+TypingIndicatorSchema.index({ lastActive: 1 });
 
-// Instance methods for Messages
-ChatMessageSchema.methods.canUserEdit = function(this: IChatMessageDoc, userId: string): boolean {
-  // Only sender can edit within 15 minutes
-  if (!this.senderId.equals(new Types.ObjectId(userId))) {
-    return false;
-  }
-  
-  const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000);
-  return !!(this.createdAt && this.createdAt > fifteenMinutesAgo && !this.deleted);
-};
+StarredMessageSchema.index({ userId: 1, messageId: 1 }, { unique: true });
+StarredMessageSchema.index({ userId: 1, tags: 1 });
 
-ChatMessageSchema.methods.canUserDelete = function(this: IChatMessageDoc, userId: string, userRole?: string): boolean {
-  // Sender can always delete their own messages
-  if (this.senderId.equals(new Types.ObjectId(userId))) {
-    return true;
-  }
-  
-  // Admins can delete any message
-  return !!(userRole && (userRole === 'admin' || userRole === 'owner'));
-};
+// Create models with proper model checking
+const Message = mongoose.models.Message || mongoose.model<IMessage>('Message', MessageSchema);
 
-ChatMessageSchema.methods.addReaction = function(this: IChatMessageDoc, emoji: string, userId: string) {
-  if (!this.reactions.has(emoji)) {
-    this.reactions.set(emoji, []);
-  }
-  
-  const reactions = this.reactions.get(emoji) || [];
-  const userObjectId = new Types.ObjectId(userId);
-  
-  // Toggle reaction - remove if exists, add if doesn't
-  const existingIndex = reactions.findIndex(id => id.equals(userObjectId));
-  if (existingIndex > -1) {
-    reactions.splice(existingIndex, 1);
-  } else {
-    reactions.push(userObjectId);
-  }
-  
-  this.reactions.set(emoji, reactions);
-  return this.save();
-};
+const Chat = (mongoose.models.Chat as IChatModel) || 
+  mongoose.model<IChatDocument, IChatModel>('Chat', ChatSchema);
 
-// Export models with proper typing
-const Chat = mongoose.model<IChatDoc, IChatModel>('Chat', ChatSchema);
-const ChatMessage = mongoose.model<IChatMessageDoc, IChatMessageModel>('ChatMessage', ChatMessageSchema);
-const ChatUnreadCount = mongoose.model<IChatUnreadCountDoc>('ChatUnreadCount', ChatUnreadCountSchema);
-const ChatTypingIndicator = mongoose.model<IChatTypingIndicatorDoc>('ChatTypingIndicator', ChatTypingIndicatorSchema);
-const ChatDraft = mongoose.model<IChatDraftDoc>('ChatDraft', ChatDraftSchema);
-const ChatCall = mongoose.model<IChatCallDoc>('ChatCall', ChatCallSchema);
-const ChatThread = mongoose.model<IChatThreadDoc>('ChatThread', ChatThreadSchema);
-const ChatFolder = mongoose.model<IChatFolderDoc>('ChatFolder', ChatFolderSchema);
+const UserChatSettings = mongoose.models.UserChatSettings || 
+  mongoose.model<IUserChatSettings>('UserChatSettings', UserChatSettingsSchema);
 
-export {
-  Chat,
-  ChatMessage,
-  ChatUnreadCount,
-  ChatTypingIndicator,
-  ChatDraft,
-  ChatCall,
-  ChatThread,
-  ChatFolder
+const TypingIndicator = mongoose.models.TypingIndicator || 
+  mongoose.model<ITypingIndicator>('TypingIndicator', TypingIndicatorSchema);
+
+const MessageDraft = mongoose.models.MessageDraft || 
+  mongoose.model<IMessageDraft>('MessageDraft', MessageDraftSchema);
+
+const StarredMessage = mongoose.models.StarredMessage || 
+  mongoose.model<IStarredMessage>('StarredMessage', StarredMessageSchema);
+
+export { 
+  Chat, 
+  Message, 
+  UserChatSettings, 
+  TypingIndicator, 
+  MessageDraft, 
+  StarredMessage,
+  type IChatDocument,
+  type IMessage,
+  type IAttachment,
+  type IReaction,
+  type IUserChatSettings,
+  type ITypingIndicator,
+  type IMessageDraft,
+  type IStarredMessage,
+  type IChatModel
 };
