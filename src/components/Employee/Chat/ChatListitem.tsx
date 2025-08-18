@@ -12,10 +12,11 @@ export default function ChatListItem({ chat, isActive, onClick }: ChatListItemPr
   const getChatName = () => {
     if (chat.name) return chat.name;
     if (!chat.isGroup && chat.participants) {
+      const creatorId = typeof chat.createdBy === 'object' ? (chat.createdBy as { _id?: string })._id : (chat.createdBy as unknown as string);
       const otherParticipant = chat.participants.find(p => 
-        typeof p === 'object' && p._id !== chat.createdBy?._id
-      );
-      return (otherParticipant as any)?.name || 'Direct Message';
+        typeof p === 'object' && (p as { _id?: string })._id !== creatorId
+      ) as { name?: string } | undefined;
+      return otherParticipant?.name || 'Direct Message';
     }
     return 'Group Chat';
   };
@@ -31,12 +32,13 @@ export default function ChatListItem({ chat, isActive, onClick }: ChatListItemPr
   const getAvatarProps = () => {
     if (chat.avatar) return { src: chat.avatar, alt: chat.name || '' };
     if (!chat.isGroup && chat.participants) {
+      const creatorId = typeof chat.createdBy === 'object' ? (chat.createdBy as { _id?: string })._id : (chat.createdBy as unknown as string);
       const otherParticipant = chat.participants.find(p => 
-        typeof p === 'object' && p._id !== chat.createdBy?._id
-      );
+        typeof p === 'object' && (p as { _id?: string })._id !== creatorId
+      ) as { name?: string; profileImage?: string } | undefined;
       return { 
-        src: (otherParticipant as any)?.profileImage, 
-        alt: (otherParticipant as any)?.name 
+        src: otherParticipant?.profileImage, 
+        alt: otherParticipant?.name 
       };
     }
     return { alt: chat.name || 'Group' };

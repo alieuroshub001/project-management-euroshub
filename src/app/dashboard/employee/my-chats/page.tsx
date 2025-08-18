@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+// no local state currently
 import { useSession } from 'next-auth/react';
 import ChatMain from '@/components/Employee/Chat/ChatMain';
 

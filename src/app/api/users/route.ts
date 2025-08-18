@@ -41,7 +41,7 @@ export async function GET() {
     const currentUserEmail = session.user.email;
     const excludeRoles = session.user.role === 'superadmin' ? [] : ['superadmin'];
     
-    const query: any = {};
+    const query: Record<string, unknown> = {};
     if (excludeRoles.length > 0) {
       query.role = { $nin: excludeRoles };
     }
