@@ -1,5 +1,5 @@
 import { IChatDocument } from '@/types/chat';
-import Avatar from '@/components/Dashboard/ProfileAvatar';
+import Image from 'next/image';
 import { FiMoreVertical, FiUsers, FiStar } from 'react-icons/fi';
 
 interface ChatHeaderProps {
@@ -18,11 +18,17 @@ export default function ChatHeader({ chat }: ChatHeaderProps) {
     <div className="flex items-center justify-between p-4 border-b">
       <div className="flex items-center">
         <div className="mr-3">
-          <Avatar 
-            src={chat.avatar || (chat.participants?.[0] as any)?.profileImage} 
-            alt={chat.name || (chat.participants?.[0] as any)?.name} 
-            size="md" 
-          />
+          {chat.avatar || (chat.participants?.[0] as any)?.profileImage ? (
+            <Image
+              src={(chat.avatar || (chat.participants?.[0] as any)?.profileImage) as string}
+              alt={chat.name || ((chat.participants?.[0] as any)?.name ?? 'Chat')}
+              width={40}
+              height={40}
+              className="rounded-full object-cover"
+            />
+          ) : (
+            <div className="w-10 h-10 rounded-full bg-gray-200" />
+          )}
         </div>
         <div>
           <h2 className="font-semibold">{chat.name || (chat.participants?.[0] as any)?.name}</h2>
