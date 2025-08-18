@@ -1,5 +1,5 @@
 import { IChatDocument } from '@/types/chat';
-import Avatar from '@/components/Dashboard/ProfileAvatar';
+import Image from 'next/image';
 import { formatDistanceToNow } from 'date-fns';
 
 interface ChatListItemProps {
@@ -48,7 +48,17 @@ export default function ChatListItem({ chat, isActive, onClick }: ChatListItemPr
       onClick={onClick}
     >
       <div className="mr-3">
-        <Avatar {...getAvatarProps()} size="md" />
+        {getAvatarProps().src ? (
+          <Image
+            src={getAvatarProps().src as string}
+            alt={(getAvatarProps().alt as string) || 'Chat'}
+            width={40}
+            height={40}
+            className="rounded-full object-cover"
+          />
+        ) : (
+          <div className="w-10 h-10 rounded-full bg-gray-200" />
+        )}
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex justify-between">
