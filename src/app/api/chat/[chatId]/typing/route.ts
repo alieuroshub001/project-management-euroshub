@@ -1,11 +1,11 @@
 // app/api/chat/[chatId]/typing/route.ts
-import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { TypingIndicator, UserChatSettings } from '@/models/Chat';
+import User from '@/models/User';
 import { IApiResponse } from '@/types';
 import mongoose from 'mongoose';
-import  User  from '@/models/User';
+import { getServerSession } from 'next-auth';
+import { NextResponse } from 'next/server';
 
 interface SessionUser {
   id: string;
@@ -39,9 +39,12 @@ async function getUserFromSession(session: SessionData) {
 // Update typing indicator
 export async function POST(
   request: Request,
-  { params }: { params: { chatId: string } }
+  { params }: { params: Promise<{ chatId: string }> }
 ) {
   try {
+    // Await the params since they're now a Promise in Next.js 15
+    const { chatId } = await params;
+    
     const session = await getServerSession(authOptions);
     if (!session?.user) {
       return NextResponse.json<IApiResponse>({
@@ -54,7 +57,7 @@ export async function POST(
       isTyping: boolean;
     };
 
-    if (!isValidObjectId(params.chatId)) {
+    if (!isValidObjectId(chatId)) {
       return NextResponse.json<IApiResponse>({
         success: false,
         message: 'Invalid chat ID'
@@ -65,7 +68,7 @@ export async function POST(
 
     // Verify user has access to the chat
     const userSettings = await UserChatSettings.findOne({
-      chatId: params.chatId,
+      chatId: chatId,
       userId
     });
     
@@ -78,7 +81,7 @@ export async function POST(
 
     // Update or create typing indicator
     const typingIndicator = await TypingIndicator.findOneAndUpdate(
-      { userId, chatId: params.chatId },
+      { userId, chatId: chatId },
       { isTyping, lastActive: new Date() },
       { upsert: true, new: true }
     ).populate('userId', 'name email profileImage');
@@ -102,9 +105,12 @@ export async function POST(
 // Get active typing indicators for a chat
 export async function GET(
   request: Request,
-  { params }: { params: { chatId: string } }
+  { params }: { params: Promise<{ chatId: string }> }
 ) {
   try {
+    // Await the params since they're now a Promise in Next.js 15
+    const { chatId } = await params;
+    
     const session = await getServerSession(authOptions);
     if (!session?.user) {
       return NextResponse.json<IApiResponse>({
@@ -113,7 +119,7 @@ export async function GET(
       }, { status: 401 });
     }
 
-    if (!isValidObjectId(params.chatId)) {
+    if (!isValidObjectId(chatId)) {
       return NextResponse.json<IApiResponse>({
         success: false,
         message: 'Invalid chat ID'
@@ -124,7 +130,7 @@ export async function GET(
 
     // Verify user has access to the chat
     const userSettings = await UserChatSettings.findOne({
-      chatId: params.chatId,
+      chatId: chatId,
       userId
     });
     
@@ -137,7 +143,7 @@ export async function GET(
 
     // Get active typing indicators (within last 5 seconds)
     const activeTyping = await TypingIndicator.find({
-      chatId: params.chatId,
+      chatId: chatId,
       isTyping: true,
       lastActive: { $gte: new Date(Date.now() - 5000) },
       userId: { $ne: userId } // Don't return the current user's typing status

@@ -1,6 +1,6 @@
 import { IChatDocument } from '@/types/chat';
-import Image from 'next/image';
 import { formatDistanceToNow } from 'date-fns';
+import Image from 'next/image';
 
 interface ChatListItemProps {
   chat: IChatDocument;

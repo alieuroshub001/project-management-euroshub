@@ -1,13 +1,13 @@
 // app/api/chat/[chatId]/route.ts
 
-import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import connectToDatabase from '@/lib/db';
 import { Chat, Message, UserChatSettings } from '@/models/Chat';
+import User from '@/models/User';
 import { IApiResponse } from '@/types';
 import mongoose from 'mongoose';
-import User from '@/models/User';
-import connectToDatabase from '@/lib/db';
+import { getServerSession } from 'next-auth';
+import { NextResponse } from 'next/server';
 
 interface SessionUser {
   id: string;
@@ -54,10 +54,12 @@ async function getUserFromSession(session: SessionData) {
 // Get chat details and messages
 export async function GET(
   request: Request,
-  { params }: { params: { chatId: string } }
+  { params }: { params: Promise<{ chatId: string }> }
 ) {
   try {
-    console.log('GET /api/chat/[chatId] - Starting request for:', params.chatId);
+    // Await the params since they're now a Promise in Next.js 15
+    const { chatId } = await params;
+    console.log('GET /api/chat/[chatId] - Starting request for:', chatId);
     
     const session = await getServerSession(authOptions);
     if (!session?.user) {
@@ -68,8 +70,8 @@ export async function GET(
       );
     }
 
-    if (!isValidObjectId(params.chatId)) {
-      console.log('Invalid chat ID:', params.chatId);
+    if (!isValidObjectId(chatId)) {
+      console.log('Invalid chat ID:', chatId);
       return NextResponse.json<IApiResponse>(
         { success: false, message: 'Invalid chat ID' },
         { status: 400 }
@@ -82,9 +84,9 @@ export async function GET(
     console.log('User ID:', userId);
 
     // First check if the chat exists and user has access
-    const chat = await Chat.findById(params.chatId);
+    const chat = await Chat.findById(chatId);
     if (!chat) {
-      console.log('Chat not found:', params.chatId);
+      console.log('Chat not found:', chatId);
       return NextResponse.json<IApiResponse>(
         { success: false, message: 'Chat not found' },
         { status: 404 }
@@ -106,7 +108,7 @@ export async function GET(
 
     // Create or update user settings if they don't exist
     let userSettings = await UserChatSettings.findOne({
-      chatId: params.chatId,
+      chatId: chatId,
       userId: userObjectId,
     });
 
@@ -114,14 +116,14 @@ export async function GET(
       console.log('Creating user settings for chat access');
       userSettings = await UserChatSettings.create({
         userId: userObjectId,
-        chatId: params.chatId,
+        chatId: chatId,
         notificationsEnabled: true,
         isFavorite: false
       });
     }
 
     // Get populated chat details
-    const populatedChat = await Chat.findById(params.chatId)
+    const populatedChat = await Chat.findById(chatId)
       .populate('createdBy', 'name email profileImage')
       .populate('members', 'name email profileImage')
       .populate('participants', 'name email profileImage')
@@ -133,12 +135,12 @@ export async function GET(
     const limit = parseInt(searchParams.get('limit') || '50');
     const skip = (page - 1) * limit;
 
-    console.log('Fetching messages for chat:', params.chatId);
+    console.log('Fetching messages for chat:', chatId);
 
     const messages = await Message.find({
       $or: [
-        { channelId: params.chatId }, 
-        { conversationId: params.chatId }
+        { channelId: chatId }, 
+        { conversationId: chatId }
       ],
       deleted: { $ne: true }
     })
@@ -157,8 +159,8 @@ export async function GET(
 
     const totalMessages = await Message.countDocuments({
       $or: [
-        { channelId: params.chatId }, 
-        { conversationId: params.chatId }
+        { channelId: chatId }, 
+        { conversationId: chatId }
       ],
       deleted: { $ne: true }
     });
@@ -192,10 +194,12 @@ export async function GET(
 // Post a new message to the chat
 export async function POST(
   request: Request,
-  { params }: { params: { chatId: string } }
+  { params }: { params: Promise<{ chatId: string }> }
 ) {
   try {
-    console.log('POST /api/chat/[chatId] - Starting message creation for:', params.chatId);
+    // Await the params since they're now a Promise in Next.js 15
+    const { chatId } = await params;
+    console.log('POST /api/chat/[chatId] - Starting message creation for:', chatId);
     
     const session = await getServerSession(authOptions);
     if (!session?.user) {
@@ -221,7 +225,7 @@ export async function POST(
       );
     }
 
-    if (!isValidObjectId(params.chatId)) {
+    if (!isValidObjectId(chatId)) {
       return NextResponse.json<IApiResponse>(
         { success: false, message: 'Invalid chat ID' },
         { status: 400 }
@@ -234,7 +238,7 @@ export async function POST(
     console.log('Sending message from user:', userId);
 
     // Check if chat exists and user has access
-    const chat = await Chat.findById(params.chatId);
+    const chat = await Chat.findById(chatId);
     if (!chat) {
       return NextResponse.json<IApiResponse>(
         { success: false, message: 'Chat not found' },
@@ -263,9 +267,9 @@ export async function POST(
 
     // Set channelId for group chats, conversationId for DMs
     if (chat.isGroup) {
-      messageData.channelId = params.chatId;
+      messageData.channelId = chatId;
     } else {
-      messageData.conversationId = params.chatId;
+      messageData.conversationId = chatId;
     }
 
     if (replyTo && isValidObjectId(replyTo)) {
@@ -277,7 +281,7 @@ export async function POST(
     const message = await Message.create(messageData);
 
     // Update chat's last message and timestamp
-    await Chat.findByIdAndUpdate(params.chatId, {
+    await Chat.findByIdAndUpdate(chatId, {
       lastMessage: message._id,
       updatedAt: new Date(),
     });
@@ -311,9 +315,12 @@ export async function POST(
 // Update chat settings
 export async function PUT(
   request: Request,
-  { params }: { params: { chatId: string } }
+  { params }: { params: Promise<{ chatId: string }> }
 ) {
   try {
+    // Await the params since they're now a Promise in Next.js 15
+    const { chatId } = await params;
+    
     const session = await getServerSession(authOptions);
     if (!session?.user) {
       return NextResponse.json<IApiResponse>(
@@ -329,7 +336,7 @@ export async function PUT(
         muteUntil?: Date;
       };
 
-    if (!isValidObjectId(params.chatId)) {
+    if (!isValidObjectId(chatId)) {
       return NextResponse.json<IApiResponse>(
         { success: false, message: 'Invalid chat ID' },
         { status: 400 }
@@ -341,7 +348,7 @@ export async function PUT(
     const { userId } = await getUserFromSession(session as SessionData);
 
     const userSettings = await UserChatSettings.findOneAndUpdate(
-      { chatId: params.chatId, userId },
+      { chatId: chatId, userId },
       { 
         notificationsEnabled: notificationsEnabled ?? true,
         isFavorite: isFavorite ?? false,

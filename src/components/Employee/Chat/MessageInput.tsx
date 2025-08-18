@@ -1,8 +1,7 @@
-import { useState, useRef, useEffect } from 'react';
-import { FiPaperclip, FiSmile, FiSend } from 'react-icons/fi';
-import EmojiPicker from './EmojiPicker';
-import { useSocket } from '@/context/SocketContext';
+import { useEffect, useRef, useState } from 'react';
+import { FiPaperclip, FiSend, FiSmile } from 'react-icons/fi';
 import { toast } from 'sonner';
+import EmojiPicker from './EmojiPicker';
 
 interface AttachmentPayload {
   url: string;
