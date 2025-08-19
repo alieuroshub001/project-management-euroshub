@@ -404,8 +404,6 @@ export async function PUT(request: Request) {
         // Validate checkout time for night shifts
         if (record.shift === 'night') {
           const checkInTime = new Date(record.checkIn);
-          const checkInHour = checkInTime.getHours();
-          const checkOutHour = now.getHours();
           
           // If checked in during evening and it's now early morning, this is normal
           // If checked in early morning and it's still early morning, this is normal

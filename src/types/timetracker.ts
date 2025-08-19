@@ -1,180 +1,10 @@
-// types/index.ts - Updated with enhanced time tracker types
-import { Document } from 'mongoose';
+// types/timetracker.ts - Enhanced types for Upwork-like time tracker
 
-export type UserRole = 'superadmin' | 'admin' | 'hr' | 'employee' | 'client';
-
-export interface IUser {
-  id: string;
-  name: string;
-  email: string;
-  role: UserRole;
-  emailVerified: boolean;
-  phone?: string;
-  profileImage?: string;
-  verificationToken?: string;
-  employeeId?: string;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-export interface IUserWithPassword extends IUser {
-  password: string;
-}
-
-// Auth session types
-export interface ISessionUser {
-  id: string;
-  name: string;
-  email: string;
-  role: UserRole;
-}
-
-export interface ISession {
-  user: ISessionUser;
-  expires: string;
-}
-
-// OTP and password reset types
-export interface IOTP {
-  id: string;
-  email: string;
-  otp: string;
-  type: 'verification' | 'password-reset';
-  referenceEmail?: string;
-  expiresAt: Date;
-  createdAt: Date;
-}
-
-export interface IPasswordResetToken {
-  id: string;
-  email: string;
-  token: string;
-  expiresAt: Date;
-  createdAt: Date;
-}
-
-// API response type
-export interface IApiResponse<T = unknown> {
-  success: boolean;
-  message: string;
-  data?: T;
-  error?: string;
-}
-
-export type ShiftType = 'morning' | 'evening' | 'night' | 'flexible';
-export type AttendanceStatus = 'present' | 'absent' | 'late' | 'half-day' | 'on-leave' | 'remote';
-
-export interface IBreak {
-  start: Date;
-  end?: Date;
-  type?: 'break' | 'prayer' | 'meal' | 'other';
-  notes?: string;
-}
-
-export interface INamaz {
-  start: Date;
-  end?: Date;
-  type?: 'fajr' | 'dhuhr' | 'asr' | 'maghrib' | 'isha';
-}
-
-export interface ITaskCompleted {
-  task: string;
-  description?: string;
-  hoursSpent?: number;
-  category?: 'development' | 'design' | 'testing' | 'meeting' | 'documentation' | 'research' | 'other';
-  priority?: 'low' | 'medium' | 'high' | 'urgent';
-  projectId?: string;
-  tags?: string[];
-}
-
-export interface IAttendanceRecord {
-  id: string;
-  employeeId: string;
-  date: Date;
-  checkIn: Date;
-  checkOut?: Date;
-  checkInLocation?: {
-    type: 'Point';
-    coordinates: [number, number];
-    address?: string;
-  };
-  checkOutLocation?: {
-    type: 'Point';
-    coordinates: [number, number];
-    address?: string;
-  };
-  checkInReason?: string;
-  checkOutReason?: string;
-  status: AttendanceStatus;
-  shift?: ShiftType;
-  tasksCompleted?: ITaskCompleted[];
-  breaks?: IBreak[];
-  totalBreakMinutes?: number;
-  namaz?: INamaz[];
-  totalNamazMinutes?: number;
-  totalHours?: number;
-  notes?: string;
-  isRemote?: boolean;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-export interface IAttachment {
-  url: string;
-  name: string;
-  public_id: string;
-  secure_url: string;
-  original_filename: string;
-  format: string;
-  bytes: number;
-  type: 'image' | 'video' | 'audio' | 'document';
-  resource_type: string;
-}
-
-// Base interface for leave request data
-export interface ILeaveRequestBase {
-  employeeId: string;
-  type: 'vacation' | 'sick' | 'personal' | 'bereavement' | 'other';
-  startDate: Date;
-  endDate: Date;
-  reason: string;
-  status: 'pending' | 'approved' | 'rejected' | 'cancelled';
-  reviewedBy?: string;
-  reviewedAt?: Date;
-  attachments?: IAttachment[];
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-// Interface for use in React components (with _id as string)
-export interface ILeaveRequest extends ILeaveRequestBase {
-  _id: string;
-}
-
-// Interface for Mongoose document (extends Document)
-export interface ILeaveRequestDocument extends ILeaveRequestBase, Document {
-  _id: string;
-  // Virtual fields
-  durationDays?: number;
-  // Instance methods
-  canBeEdited(): boolean;
-  canBeCancelled(): boolean;
-}
-
-// Interface for Mongoose model static methods
-export interface ILeaveRequestModel {
-  hasOverlappingLeave(
-    employeeId: string, 
-    startDate: Date, 
-    endDate: Date, 
-    excludeId?: string
-  ): Promise<boolean>;
-}
-
-// ENHANCED TIME TRACKER TYPES - Upwork-like functionality
-
+// Basic status and category enums
 export type TimeTrackerStatus = 'running' | 'paused' | 'stopped' | 'archived';
+
 export type TaskCategory = 'development' | 'design' | 'testing' | 'meeting' | 'documentation' | 'research' | 'other';
+
 export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent';
 
 // Activity Level Interface - 10-minute intervals like Upwork
@@ -191,9 +21,8 @@ export interface IActivityLevel {
   intervalMinutes: number; // Usually 10 minutes
 }
 
-// Enhanced Screenshot Interface - Core of Upwork-like tracking
+// Enhanced Screenshot Interface
 export interface IScreenshot {
-  id?: string;
   url: string;
   thumbnailUrl: string;
   blurredUrl?: string; // For privacy mode
@@ -216,6 +45,17 @@ export interface IScreenshot {
   fileSize?: number;
   createdAt: Date;
   updatedAt: Date;
+}
+
+// Enhanced Task Interface
+export interface ITaskCompleted {
+  task: string;
+  description?: string;
+  hoursSpent?: number;
+  category: TaskCategory;
+  priority: TaskPriority;
+  projectId?: string;
+  tags: string[];
 }
 
 // Device Info Interface
@@ -283,7 +123,7 @@ export interface ITimeTrackerSettings {
   id?: string;
   employeeId: string;
   screenshotFrequency: number; // in minutes
-  randomScreenshots: boolean; // Take screenshots at random intervals
+  randomScreenshots: boolean;
   screenshotsPerHour: number;
   trackingEnabled: boolean;
   blurScreenshots: boolean;
@@ -301,7 +141,7 @@ export interface ITimeTrackerSettings {
   updatedAt: Date;
 }
 
-// Work Diary Interface - Daily summary like Upwork
+// Work Diary Interface - Daily summary
 export interface IWorkDiary {
   id?: string;
   employeeId: string;
@@ -318,7 +158,7 @@ export interface IWorkDiary {
   updatedAt: Date;
 }
 
-// API Response Types for Time Tracker
+// API Response Types
 export interface ITimeTrackerStats {
   daily: {
     totalHours: number;
@@ -385,7 +225,57 @@ export interface ISessionSummary {
   date: Date;
 }
 
-// Client-side interfaces for React components
+// Time Entry Interface (for manual time entries)
+export interface ITimeEntry {
+  id?: string;
+  employeeId: string;
+  projectId?: string;
+  title: string;
+  description?: string;
+  startTime: Date;
+  endTime: Date;
+  duration: number; // in hours
+  isManual: boolean;
+  tasksCompleted: ITaskCompleted[];
+  hourlyRate?: number;
+  totalEarnings?: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// Screenshot Grid Interface (for displaying screenshots)
+export interface IScreenshotGrid {
+  screenshots: IScreenshot[];
+  totalCount: number;
+  page: number;
+  limit: number;
+  hasMore: boolean;
+}
+
+// Activity Report Interface
+export interface IActivityReport {
+  employeeId: string;
+  date: Date;
+  intervals: Array<{
+    startTime: Date;
+    endTime: Date;
+    screenshot?: IScreenshot;
+    activityLevel: number;
+    keystrokes: number;
+    mouseClicks: number;
+    activeApplication?: string;
+    isIdle: boolean;
+  }>;
+  summary: {
+    totalHours: number;
+    productiveHours: number;
+    idleHours: number;
+    averageActivity: number;
+    totalScreenshots: number;
+  };
+}
+
+// Client-side interfaces for components
 export interface ITimeTrackerContextValue {
   currentSession: ITimeTrackerSession | null;
   isTracking: boolean;
@@ -404,6 +294,29 @@ export interface ITimeTrackerContextValue {
   error: string | null;
 }
 
+// Screenshot viewer interface
+export interface IScreenshotViewerProps {
+  screenshots: IScreenshot[];
+  currentIndex: number;
+  onClose: () => void;
+  onNext: () => void;
+  onPrevious: () => void;
+  onDelete?: (screenshot: IScreenshot) => void;
+  onAddDescription?: (screenshot: IScreenshot, description: string) => void;
+}
+
+// Time tracker dashboard interface
+export interface ITimeTrackerDashboardData {
+  activeSessions: ITimeTrackerSession[];
+  recentSessions: ITimeTrackerSession[];
+  stats: ITimeTrackerStats;
+  workDiary: IWorkDiary[];
+  settings: ITimeTrackerSettings;
+  totalEarnings: number;
+  weeklyHours: number;
+  monthlyHours: number;
+}
+
 // Filter and sorting options
 export interface ISessionFilters {
   status?: TimeTrackerStatus[];
@@ -411,7 +324,7 @@ export interface ISessionFilters {
   dateFrom?: Date;
   dateTo?: Date;
   minHours?: number;
-  maxHours?: number;
+  maxHours?: Date;
   approved?: boolean;
 }
 
@@ -420,8 +333,78 @@ export interface ISessionSortOptions {
   direction: 'asc' | 'desc';
 }
 
+// Webhook payload types for different events
+export interface ISessionStartedPayload {
+  sessionId: string;
+  title: string;
+  projectId?: string;
+  startTime: Date;
+}
+
+export interface ISessionStoppedPayload {
+  sessionId: string;
+  endTime: Date;
+  totalHours: number;
+  productiveHours: number;
+}
+
+export interface ISessionPausedPayload {
+  sessionId: string;
+  pausedAt: Date;
+  totalElapsedMinutes: number;
+}
+
+export interface IScreenshotCapturedPayload {
+  sessionId: string;
+  screenshotId: string;
+  timestamp: Date;
+  activityLevel: number;
+}
+
+export interface IActivityUpdatedPayload {
+  sessionId: string;
+  activityData: IActivityLevel;
+  timestamp: Date;
+}
+
+// Union type for all webhook payloads
+export type WebhookPayload = 
+  | ISessionStartedPayload 
+  | ISessionStoppedPayload 
+  | ISessionPausedPayload 
+  | IScreenshotCapturedPayload 
+  | IActivityUpdatedPayload;
+
+// Webhook/Real-time interfaces
+export interface ITimeTrackerWebhook {
+  event: 'session_started' | 'session_stopped' | 'session_paused' | 'screenshot_captured' | 'activity_updated';
+  data: {
+    employeeId: string;
+    sessionId: string;
+    timestamp: Date;
+    payload: WebhookPayload;
+  };
+}
+
+// Generic API response data types
+export type ApiResponseData = 
+  | ITimeTrackerSession
+  | ITimeTrackerSession[]
+  | ITimeTrackerSettings
+  | IWorkDiary
+  | IWorkDiary[]
+  | ITimeTrackerStats
+  | IScreenshot
+  | IScreenshot[]
+  | ISessionSummary
+  | ISessionSummary[]
+  | IActivityReport
+  | ITimeTrackerDashboardData
+  | Record<string, unknown>
+  | null;
+
 // Utility types for API responses
-export interface ITimeTrackerApiResponse<T = unknown> {
+export interface ITimeTrackerApiResponse<T = ApiResponseData> {
   success: boolean;
   message: string;
   data?: T;

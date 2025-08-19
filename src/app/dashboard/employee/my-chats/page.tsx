@@ -16,7 +16,7 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col overflow-hidden">
       <div className="flex-1 overflow-hidden">
         <ChatMain />
       </div>

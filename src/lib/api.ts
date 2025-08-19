@@ -1,7 +1,7 @@
 // lib/api.ts
 import { IApiResponse } from '@/types';
 
-interface FetchOptions extends RequestInit {
+interface FetchOptions extends Omit<RequestInit, 'body'> {
   // Allows plain object, string, or FormData for flexibility
   body?: unknown;
 }

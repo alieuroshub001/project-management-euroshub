@@ -1,7 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
-import { Paperclip, Send, Smile, X, Image as ImageIcon, File, Mic } from 'lucide-react';
+import { useRef, useState, useEffect } from 'react';
+import { Paperclip, Send, Smile, X, Image as ImageIcon, File, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import EmojiPicker from './EmojiPicker';
+import { IMessage } from '@/types/chat';
+import Image from "next/image";
 
 interface AttachmentPayload {
   url: string;
@@ -18,24 +20,34 @@ interface AttachmentPayload {
 interface MessageInputProps {
   chatId: string;
   onSend: (content: string, attachments?: AttachmentPayload[]) => void;
+  replyingTo?: IMessage | null;
 }
 
-export default function MessageInput({ chatId, onSend }: MessageInputProps) {
+export default function MessageInput({ onSend, replyingTo }: MessageInputProps) {
   const [message, setMessage] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [attachments, setAttachments] = useState<AttachmentPayload[]>([]);
   const [isUploading, setIsUploading] = useState(false);
-  const [isRecording, setIsRecording] = useState(false);
+  const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Auto-resize textarea
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 120)}px`;
     }
   }, [message]);
+
+  // Focus textarea when replying
+  useEffect(() => {
+    if (replyingTo && textareaRef.current) {
+      textareaRef.current.focus();
+    }
+  }, [replyingTo]);
 
   const handleSend = () => {
     if (message.trim() || attachments.length > 0) {
@@ -55,13 +67,12 @@ export default function MessageInput({ chatId, onSend }: MessageInputProps) {
     }
   };
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files || e.target.files.length === 0) return;
+  const uploadFiles = async (files: FileList) => {
+    if (files.length === 0) return;
 
-    const files = Array.from(e.target.files);
     setIsUploading(true);
     
-    const uploadPromises = files.map(async (file) => {
+    const uploadPromises = Array.from(files).map(async (file) => {
       const formData = new FormData();
       formData.append('file', file);
       formData.append('folder', 'chat');
@@ -101,12 +112,38 @@ export default function MessageInput({ chatId, onSend }: MessageInputProps) {
         setAttachments(prev => [...prev, ...validUploads]);
         toast.success(`${validUploads.length} file(s) uploaded successfully`);
       }
-    } catch (error) {
+    } catch  {
       toast.error('Some files failed to upload');
     } finally {
       setIsUploading(false);
-      // Reset input
-      if (e.target) e.target.value = '';
+    }
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      await uploadFiles(e.target.files);
+      e.target.value = ''; // Reset input
+    }
+  };
+
+  const handleDrag = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setDragActive(true);
+    } else if (e.type === "dragleave") {
+      setDragActive(false);
+    }
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    setShowAttachmentMenu(false);
+
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      await uploadFiles(e.dataTransfer.files);
     }
   };
 
@@ -122,35 +159,22 @@ export default function MessageInput({ chatId, onSend }: MessageInputProps) {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
-  // Typing indicator
-  useEffect(() => {
-    if (!message.trim()) return;
-    
-    const controller = new AbortController();
-    const sendTyping = async () => {
-      try {
-        await fetch(`/api/chat/${chatId}/typing`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ isTyping: true }),
-          signal: controller.signal,
-        });
-      } catch (error) {
-        // Silently fail for typing indicator
-      }
-    };
-    
-    const timer = setTimeout(sendTyping, 300);
-    return () => {
-      clearTimeout(timer);
-      controller.abort();
-    };
-  }, [message, chatId]);
-
   const canSend = (message.trim() || attachments.length > 0) && !isUploading;
 
   return (
     <div className="relative bg-white border-t border-slate-200">
+      {/* Drag and Drop Overlay */}
+      {dragActive && (
+        <div className="absolute inset-0 bg-blue-100 bg-opacity-90 border-2 border-dashed border-blue-400 rounded-lg flex items-center justify-center z-50">
+          <div className="text-center">
+            <div className="w-16 h-16 bg-blue-500 rounded-full flex items-center justify-center mx-auto mb-3">
+              <Plus className="w-8 h-8 text-white" />
+            </div>
+            <p className="text-blue-700 font-medium">Drop files here to upload</p>
+          </div>
+        </div>
+      )}
+
       {/* Attachment Previews */}
       {attachments.length > 0 && (
         <div className="p-4 border-b border-slate-100 bg-slate-50">
@@ -159,11 +183,13 @@ export default function MessageInput({ chatId, onSend }: MessageInputProps) {
               <div key={index} className="relative group">
                 {attachment.type === 'image' ? (
                   <div className="relative">
-                    <img
-                      src={attachment.url}
-                      alt={attachment.name}
-                      className="h-20 w-20 object-cover rounded-lg border border-slate-200 shadow-sm"
-                    />
+                  <Image
+                    src={attachment.url}
+                    alt={attachment.name || "Attachment image"}
+                    width={80}     // required
+                    height={80}    // required
+                    className="h-20 w-20 object-cover rounded-lg border border-slate-200 shadow-sm"
+                  />
                     <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-200 rounded-lg flex items-center justify-center">
                       <button 
                         onClick={() => removeAttachment(index)}
@@ -207,39 +233,68 @@ export default function MessageInput({ chatId, onSend }: MessageInputProps) {
       )}
       
       {/* Input Area */}
-      <div className="p-4">
+      <div 
+        className="p-4"
+        onDragEnter={handleDrag}
+        onDragLeave={handleDrag}
+        onDragOver={handleDrag}
+        onDrop={handleDrop}
+      >
         <div className="flex items-end space-x-3">
-          {/* Attachment Button */}
-          <div className="flex space-x-1">
+          {/* Attachment Button with Menu */}
+          <div className="relative flex space-x-1">
             <button 
               className="p-2 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-800 transition-all duration-200 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
-              onClick={() => fileInputRef.current?.click()}
+              onClick={() => setShowAttachmentMenu(!showAttachmentMenu)}
               disabled={isUploading}
-              title="Attach file"
+              title="Attach files"
             >
               <Paperclip className="w-5 h-5" />
-              <input 
-                type="file" 
-                ref={fileInputRef} 
-                onChange={handleFileChange}
-                className="hidden" 
-                multiple 
-                accept="image/*,application/*,.pdf,.doc,.docx,.txt"
-              />
             </button>
-            
-            {/* Voice Message Button */}
-            <button 
-              className={`p-2 rounded-full transition-all duration-200 hover:scale-105 ${
-                isRecording 
-                  ? 'bg-red-100 text-red-600 hover:bg-red-200' 
-                  : 'bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-800'
-              }`}
-              onClick={() => setIsRecording(!isRecording)}
-              title={isRecording ? "Stop recording" : "Record voice message"}
-            >
-              <Mic className={`w-5 h-5 ${isRecording ? 'animate-pulse' : ''}`} />
-            </button>
+
+            {/* Attachment Menu */}
+            {showAttachmentMenu && (
+              <div className="absolute bottom-full left-0 mb-2 w-48 bg-white rounded-lg shadow-xl border border-slate-200 py-2 z-50">
+                <button
+                  className="w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center"
+                  onClick={() => {
+                    imageInputRef.current?.click();
+                    setShowAttachmentMenu(false);
+                  }}
+                >
+                  <ImageIcon className="w-4 h-4 mr-3 text-blue-500" />
+                  Upload Images
+                </button>
+                <button
+                  className="w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center"
+                  onClick={() => {
+                    fileInputRef.current?.click();
+                    setShowAttachmentMenu(false);
+                  }}
+                >
+                  <File className="w-4 h-4 mr-3 text-green-500" />
+                  Upload Documents
+                </button>
+              </div>
+            )}
+
+            {/* Hidden file inputs */}
+            <input 
+              type="file" 
+              ref={imageInputRef} 
+              onChange={handleFileChange}
+              className="hidden" 
+              multiple 
+              accept="image/*"
+            />
+            <input 
+              type="file" 
+              ref={fileInputRef} 
+              onChange={handleFileChange}
+              className="hidden" 
+              multiple 
+              accept=".pdf,.doc,.docx,.txt,.zip,.rar"
+            />
           </div>
           
           {/* Message Input */}
@@ -247,13 +302,13 @@ export default function MessageInput({ chatId, onSend }: MessageInputProps) {
             <div className="relative bg-slate-50 border border-slate-200 rounded-2xl focus-within:border-blue-500 focus-within:bg-white transition-all duration-200">
               <textarea
                 ref={textareaRef}
-                className="w-full bg-transparent border-0 focus:ring-0 resize-none py-3 px-4 pr-12 max-h-32 placeholder-slate-500 text-slate-800 rounded-2xl"
-                placeholder={isRecording ? "Recording voice message..." : "Type a message..."}
+                className="w-full bg-transparent border-0 focus:ring-0 resize-none py-3 px-4 pr-12 min-h-[48px] max-h-[120px] placeholder-slate-500 text-slate-800 rounded-2xl"
+                placeholder={replyingTo ? "Reply to message..." : "Type a message..."}
                 rows={1}
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
                 onKeyDown={handleKeyDown}
-                disabled={isRecording || isUploading}
+                disabled={isUploading}
               />
               
               {/* Emoji Button */}
@@ -261,7 +316,7 @@ export default function MessageInput({ chatId, onSend }: MessageInputProps) {
                 <button 
                   className="p-1 rounded-full hover:bg-slate-200 text-slate-500 hover:text-slate-700 transition-all duration-200"
                   onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                  disabled={isRecording}
+                  disabled={isUploading}
                 >
                   <Smile className="w-5 h-5" />
                 </button>
@@ -273,6 +328,7 @@ export default function MessageInput({ chatId, onSend }: MessageInputProps) {
                       onSelect={(emoji) => {
                         setMessage(prev => prev + emoji);
                         setShowEmojiPicker(false);
+                        textareaRef.current?.focus();
                       }} 
                       onClose={() => setShowEmojiPicker(false)}
                     />
@@ -304,24 +360,6 @@ export default function MessageInput({ chatId, onSend }: MessageInputProps) {
           </button>
         </div>
         
-        {/* Recording Indicator */}
-        {isRecording && (
-          <div className="mt-3 flex items-center justify-center space-x-2 text-red-600 bg-red-50 rounded-lg p-2">
-            <div className="flex space-x-1">
-              <div className="w-1 h-4 bg-red-500 rounded-full animate-pulse"></div>
-              <div className="w-1 h-4 bg-red-500 rounded-full animate-pulse" style={{ animationDelay: '0.1s' }}></div>
-              <div className="w-1 h-4 bg-red-500 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }}></div>
-            </div>
-            <span className="text-sm font-medium">Recording voice message...</span>
-            <button 
-              onClick={() => setIsRecording(false)}
-              className="text-red-600 hover:text-red-800 font-medium text-sm"
-            >
-              Cancel
-            </button>
-          </div>
-        )}
-        
         {/* Upload Progress */}
         {isUploading && (
           <div className="mt-2 bg-blue-50 rounded-lg p-2">
@@ -333,11 +371,14 @@ export default function MessageInput({ chatId, onSend }: MessageInputProps) {
         )}
       </div>
       
-      {/* Click outside to close emoji picker */}
-      {showEmojiPicker && (
+      {/* Click outside to close menus */}
+      {(showEmojiPicker || showAttachmentMenu) && (
         <div 
           className="fixed inset-0 z-40"
-          onClick={() => setShowEmojiPicker(false)}
+          onClick={() => {
+            setShowEmojiPicker(false);
+            setShowAttachmentMenu(false);
+          }}
         ></div>
       )}
     </div>

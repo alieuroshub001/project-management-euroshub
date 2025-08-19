@@ -280,9 +280,12 @@ export default function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
                   onChange={setSelectedUsers}
                   disabled={loading}
                   optionLabelProp="label"
-                  filterOption={(input, option) =>
-                    (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
-                  }
+                  filterOption={(input, option) => {
+                    const label = option?.label;
+                    return typeof label === 'string'
+                      ? label.toLowerCase().includes(input.toLowerCase())
+                      : false;
+                  }}
                 >
                   {users.map(user => (
                     <Select.Option 

@@ -12,7 +12,7 @@ import {
   UserOutlined
 } from '@ant-design/icons';
 import { Alert, Button, Card, Col, List, Row, Spin, Statistic, Tag, Typography, message } from 'antd';
-import { differenceInMinutes, format, parseISO, addDays, isAfter, isBefore } from 'date-fns';
+import { differenceInMinutes, format, parseISO, addDays, isBefore } from 'date-fns';
 import { useEffect, useState } from 'react';
 import BreakModal from './BreakModal';
 import CheckInModal from './CheckInModal';
@@ -399,7 +399,7 @@ export default function CurrentAttendance({
           <div className="flex justify-between items-center">
             <Title level={4} className="mb-0 flex items-center">
               <CalendarOutlined className="mr-2" />
-              Today's Attendance
+              Today&apos;s Attendance
             </Title>
             <Text type="secondary">
               {format(currentTime, 'MMM dd, yyyy - hh:mm a')}
@@ -728,7 +728,7 @@ export default function CurrentAttendance({
             </div>
             <Title level={3} type="secondary" className="mb-2">No Active Session</Title>
             <Text type="secondary" className="block mb-6 text-lg">
-              You haven't checked in today or have already checked out
+              You haven&apos;t checked in today or have already checked out
             </Text>
             <Button 
               type="primary" 

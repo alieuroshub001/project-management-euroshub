@@ -4,7 +4,7 @@
 import { useState, useEffect, ChangeEvent, FormEvent } from 'react';
 import { useSession } from 'next-auth/react';
 import { uploadFileToCloudinary, deleteFromCloudinary } from '@/lib/cloudinary';
-import axios, { AxiosError } from 'axios';
+import axios from 'axios';
 import { toast } from 'react-hot-toast';
 import Image from 'next/image';
 

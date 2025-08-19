@@ -8,7 +8,7 @@ import {
   AttendanceStatus,
   ShiftType
 } from '@/types';
-import { addDays, differenceInMinutes, isBefore, isAfter } from 'date-fns';
+import { addDays, differenceInMinutes } from 'date-fns';
 
 // Define proper types for schema validation functions
 interface AttendanceRecordDocument extends Document {
@@ -46,42 +46,6 @@ interface AttendanceRecordDocument extends Document {
 }
 
 // Helper function to get shift end time considering night shift boundary crossing
-const getShiftEndTime = (checkInTime: Date, shift: string): Date => {
-  const checkInHour = checkInTime.getHours();
-  let endTime = new Date(checkInTime);
-  
-  switch (shift) {
-    case 'night':
-      // Night shift: 12am-8am
-      if (checkInHour >= 18) {
-        // If checking in evening (6pm or later), shift ends next day at 8am
-        endTime = addDays(checkInTime, 1);
-        endTime.setHours(8, 0, 0, 0);
-      } else if (checkInHour < 8) {
-        // If checking in early morning (before 8am), shift ends same day at 8am
-        endTime.setHours(8, 0, 0, 0);
-      } else {
-        // If checking in during day (unusual for night shift), end at 8am next day
-        endTime = addDays(checkInTime, 1);
-        endTime.setHours(8, 0, 0, 0);
-      }
-      break;
-    case 'evening':
-      // Evening shift: 4pm-12am
-      endTime.setHours(23, 59, 59, 999); // End of day
-      break;
-    case 'morning':
-      // Morning shift: 8am-4pm
-      endTime.setHours(16, 0, 0, 0);
-      break;
-    default:
-      // Flexible shift - use 24 hours from check-in
-      endTime = addDays(checkInTime, 1);
-      break;
-  }
-  
-  return endTime;
-};
 
 // Helper function to calculate working hours with proper night shift handling
 const calculateTotalHours = (checkInTime: Date, checkOutTime: Date, shift: string, breakMinutes = 0, namazMinutes = 0): number => {
@@ -313,8 +277,6 @@ interface AttendanceWithVirtuals extends AttendanceRecordDocument {
 AttendanceRecordSchema.virtual('calculatedHours').get(function(this: AttendanceWithVirtuals) {
   if (!this.checkOut) return 0;
   
-  const breakHours = (this.totalBreakMinutes || 0) / 60;
-  const namazHours = (this.totalNamazMinutes || 0) / 60;
   
   return calculateTotalHours(this.checkIn, this.checkOut, this.shift, this.totalBreakMinutes, this.totalNamazMinutes);
 });
