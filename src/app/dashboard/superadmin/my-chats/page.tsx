@@ -17,9 +17,6 @@ export default function ChatPage() {
 
   return (
     <div className="h-full flex flex-col">
-      <div className="p-4 border-b">
-        <h1 className="text-2xl font-bold">Messages</h1>
-      </div>
       <div className="flex-1 overflow-hidden">
         <ChatMain />
       </div>

@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { IChatDocument, IMessage } from '@/types/chat';
-// IApiResponse not needed here
 import ChatSidebar from './ChatSidebar';
 import ChatWindow from './ChatWindow';
 import ChatHeader from './ChatHeader';
 import { fetchApi } from '@/lib/api';
 import { useSocket } from '@/context/SocketContext';
+import { Loader2, MessageCircle, RefreshCw } from 'lucide-react';
 
 export default function ChatMain() {
   const { data: session } = useSession();
@@ -179,10 +179,14 @@ export default function ChatMain() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-[calc(100vh-64px)]">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading chats...</p>
+      <div className="flex items-center justify-center h-screen bg-gradient-to-br from-slate-50 to-blue-50">
+        <div className="text-center p-8 bg-white rounded-2xl shadow-xl border border-slate-100">
+          <div className="relative mb-6">
+            <Loader2 className="w-12 h-12 text-blue-500 animate-spin mx-auto" />
+            <div className="absolute inset-0 w-12 h-12 border-4 border-blue-100 rounded-full mx-auto"></div>
+          </div>
+          <h3 className="text-lg font-semibold text-slate-800 mb-2">Loading Your Chats</h3>
+          <p className="text-slate-600">Please wait while we fetch your conversations...</p>
         </div>
       </div>
     );
@@ -190,17 +194,22 @@ export default function ChatMain() {
 
   if (error) {
     return (
-      <div className="flex items-center justify-center h-[calc(100vh-64px)]">
-        <div className="text-center">
-          <p className="text-red-500 mb-4">{error}</p>
+      <div className="flex items-center justify-center h-screen bg-gradient-to-br from-slate-50 to-red-50">
+        <div className="text-center p-8 bg-white rounded-2xl shadow-xl border border-red-100 max-w-md mx-4">
+          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <MessageCircle className="w-8 h-8 text-red-600" />
+          </div>
+          <h3 className="text-lg font-semibold text-slate-800 mb-2">Connection Error</h3>
+          <p className="text-red-600 mb-6">{error}</p>
           <button 
             onClick={() => {
               setError(null);
               fetchChats(true);
             }} 
-            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+            className="inline-flex items-center px-6 py-3 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 transition-colors duration-200 shadow-lg hover:shadow-xl"
           >
-            Retry
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Try Again
           </button>
         </div>
       </div>
@@ -212,55 +221,79 @@ export default function ChatMain() {
     : undefined;
 
   return (
-    <div className="flex h-[calc(100vh-64px)] bg-white rounded-lg shadow">
-      <ChatSidebar 
-        chats={chats} 
-        activeChat={activeChat} 
-        onSelectChat={handleChatSelect}
-        onRefresh={refreshChats}
-      />
+    <div className="flex h-screen bg-gradient-to-br from-slate-50 to-blue-50">
+      <div className="flex w-full max-w-7xl mx-auto bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden m-4">
+        <ChatSidebar 
+          chats={chats} 
+          activeChat={activeChat} 
+          onSelectChat={handleChatSelect}
+          onRefresh={refreshChats}
+        />
 
-      <div className="flex flex-col flex-1 border-l">
-        {currentChat ? (
-          <>
-            <ChatHeader chat={currentChat} />
-            <ChatWindow
-              chatId={activeChat}
-              messages={messages}
-              onSendMessage={handleSendMessage}
-              messagesEndRef={messagesEndRef}
-            />
-          </>
-        ) : (
-          <div className="flex items-center justify-center h-full">
-            <div className="text-center">
-              <p className="text-gray-500 mb-4">
-                {chats.length === 0 
-                  ? 'No chats available. Create a new chat to get started!' 
-                  : 'Select a chat to start messaging'
-                }
-              </p>
-              {chats.length === 0 && (
-                <button 
-                  onClick={refreshChats}
-                  className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-                >
-                  Refresh Chats
-                </button>
-              )}
+        <div className="flex flex-col flex-1 border-l border-slate-200">
+          {currentChat ? (
+            <>
+              <ChatHeader chat={currentChat} />
+              <ChatWindow
+                chatId={activeChat}
+                messages={messages}
+                onSendMessage={handleSendMessage}
+                messagesEndRef={messagesEndRef}
+              />
+            </>
+          ) : (
+            <div className="flex items-center justify-center h-full bg-gradient-to-b from-slate-50 to-white">
+              <div className="text-center p-12 max-w-md">
+                <div className="w-24 h-24 bg-gradient-to-br from-blue-100 to-blue-200 rounded-full flex items-center justify-center mx-auto mb-6">
+                  <MessageCircle className="w-12 h-12 text-blue-600" />
+                </div>
+                <h3 className="text-2xl font-bold text-slate-800 mb-3">
+                  {chats.length === 0 ? 'No Conversations Yet' : 'Select a Conversation'}
+                </h3>
+                <p className="text-slate-600 mb-6 leading-relaxed">
+                  {chats.length === 0 
+                    ? 'Start your first conversation by creating a new chat or joining an existing one.' 
+                    : 'Choose a conversation from the sidebar to start messaging.'
+                  }
+                </p>
+                {chats.length === 0 && (
+                  <button 
+                    onClick={refreshChats}
+                    className="inline-flex items-center px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-all duration-200 shadow-lg hover:shadow-xl hover:scale-105"
+                  >
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                    Refresh Chats
+                  </button>
+                )}
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
-      {/* Debug Panel (remove in production) */}
+      {/* Socket Status Indicator */}
+      <div className="fixed top-4 right-4 z-50">
+        <div className={`flex items-center px-3 py-1 rounded-full text-xs font-medium transition-all duration-300 ${
+          isConnected 
+            ? 'bg-green-100 text-green-800 border border-green-200' 
+            : 'bg-red-100 text-red-800 border border-red-200'
+        }`}>
+          <div className={`w-2 h-2 rounded-full mr-2 ${
+            isConnected ? 'bg-green-500' : 'bg-red-500'
+          }`}></div>
+          {isConnected ? 'Connected' : 'Disconnected'}
+        </div>
+      </div>
+
+      {/* Development Debug Panel */}
       {process.env.NODE_ENV === 'development' && (
-        <div className="fixed bottom-4 right-4 bg-black bg-opacity-75 text-white p-2 rounded text-xs max-w-xs">
+        <div className="fixed bottom-4 right-4 bg-black bg-opacity-90 text-white p-3 rounded-lg text-xs max-w-xs backdrop-blur-sm border border-slate-700">
+          <div className="font-semibold mb-2 text-blue-400">Debug Info</div>
           <div>Session: {session?.user?.email}</div>
           <div>Chats: {chats.length}</div>
-          <div>Active: {activeChat}</div>
+          <div>Active: {activeChat || 'None'}</div>
           <div>Messages: {messages.length}</div>
-          <div>Socket: {isConnected ? 'Connected' : 'Disconnected'}</div>
+          <div>Socket: {isConnected ? '✅ Connected' : '❌ Disconnected'}</div>
         </div>
       )}
     </div>

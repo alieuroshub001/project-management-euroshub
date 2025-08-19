@@ -1,4 +1,4 @@
-// models/AttendanceRecord.ts - FIXED VERSION: Removed unique index constraint and fixed TypeScript errors
+// models/AttendanceRecord.ts - FIXED VERSION: Added proper night shift time calculations
 import mongoose, { Schema, Model, Document, CallbackError } from 'mongoose';
 import { 
   IAttendanceRecord, 
@@ -8,6 +8,7 @@ import {
   AttendanceStatus,
   ShiftType
 } from '@/types';
+import { addDays, differenceInMinutes, isBefore, isAfter } from 'date-fns';
 
 // Define proper types for schema validation functions
 interface AttendanceRecordDocument extends Document {
@@ -43,6 +44,51 @@ interface AttendanceRecordDocument extends Document {
     ipAddress?: string;
   };
 }
+
+// Helper function to get shift end time considering night shift boundary crossing
+const getShiftEndTime = (checkInTime: Date, shift: string): Date => {
+  const checkInHour = checkInTime.getHours();
+  let endTime = new Date(checkInTime);
+  
+  switch (shift) {
+    case 'night':
+      // Night shift: 12am-8am
+      if (checkInHour >= 18) {
+        // If checking in evening (6pm or later), shift ends next day at 8am
+        endTime = addDays(checkInTime, 1);
+        endTime.setHours(8, 0, 0, 0);
+      } else if (checkInHour < 8) {
+        // If checking in early morning (before 8am), shift ends same day at 8am
+        endTime.setHours(8, 0, 0, 0);
+      } else {
+        // If checking in during day (unusual for night shift), end at 8am next day
+        endTime = addDays(checkInTime, 1);
+        endTime.setHours(8, 0, 0, 0);
+      }
+      break;
+    case 'evening':
+      // Evening shift: 4pm-12am
+      endTime.setHours(23, 59, 59, 999); // End of day
+      break;
+    case 'morning':
+      // Morning shift: 8am-4pm
+      endTime.setHours(16, 0, 0, 0);
+      break;
+    default:
+      // Flexible shift - use 24 hours from check-in
+      endTime = addDays(checkInTime, 1);
+      break;
+  }
+  
+  return endTime;
+};
+
+// Helper function to calculate working hours with proper night shift handling
+const calculateTotalHours = (checkInTime: Date, checkOutTime: Date, shift: string, breakMinutes = 0, namazMinutes = 0): number => {
+  const workedMinutes = differenceInMinutes(checkOutTime, checkInTime);
+  const netMinutes = Math.max(0, workedMinutes - breakMinutes - namazMinutes);
+  return parseFloat((netMinutes / 60).toFixed(2));
+};
 
 const BreakSchema = new Schema<IBreak>({
   start: { type: Date, required: true },
@@ -123,15 +169,33 @@ const AttendanceRecordSchema: Schema = new Schema(
       validate: [
         {
           validator: function(this: AttendanceRecordDocument, value: Date) {
-            return !value || value > this.checkIn;
+            if (!value) return true;
+            
+            // For night shift, allow checkout on next day
+            if (this.shift === 'night') {
+              const checkInHour = this.checkIn.getHours();
+              // If checked in during evening/night, allow checkout next day
+              if (checkInHour >= 18) {
+                const nextDay8am = addDays(this.checkIn, 1);
+                nextDay8am.setHours(8, 0, 0, 0);
+                return value <= nextDay8am && value > this.checkIn;
+              }
+            }
+            
+            return value > this.checkIn;
           },
-          message: 'Check-out time must be after check-in time'
+          message: 'Check-out time must be after check-in time and within shift hours'
         },
         {
-          validator: function(value: Date) {
-            return !value || value <= new Date();
+          validator: function(this: AttendanceRecordDocument, value: Date) {
+            if (!value) return true;
+            
+            // Allow some flexibility for future checkout (max 1 hour)
+            const maxCheckoutTime = new Date();
+            maxCheckoutTime.setHours(maxCheckoutTime.getHours() + 1);
+            return value <= maxCheckoutTime;
           },
-          message: 'Check-out time cannot be in the future'
+          message: 'Check-out time cannot be more than 1 hour in the future'
         }
       ]
     },
@@ -245,25 +309,22 @@ interface AttendanceWithVirtuals extends AttendanceRecordDocument {
   durationMinutes: number;
 }
 
-// Virtuals
+// Virtuals - UPDATED with proper night shift handling
 AttendanceRecordSchema.virtual('calculatedHours').get(function(this: AttendanceWithVirtuals) {
   if (!this.checkOut) return 0;
-  
-  const diffMs = this.checkOut.getTime() - this.checkIn.getTime();
-  const diffHours = diffMs / (1000 * 60 * 60);
   
   const breakHours = (this.totalBreakMinutes || 0) / 60;
   const namazHours = (this.totalNamazMinutes || 0) / 60;
   
-  return parseFloat(Math.max(0, diffHours - breakHours - namazHours).toFixed(2));
+  return calculateTotalHours(this.checkIn, this.checkOut, this.shift, this.totalBreakMinutes, this.totalNamazMinutes);
 });
 
 AttendanceRecordSchema.virtual('durationMinutes').get(function(this: AttendanceWithVirtuals) {
   if (!this.checkOut) return 0;
-  return Math.round((this.checkOut.getTime() - this.checkIn.getTime()) / (1000 * 60));
+  return differenceInMinutes(this.checkOut, this.checkIn);
 });
 
-// Pre-save hooks
+// UPDATED Pre-save hooks with proper night shift handling
 AttendanceRecordSchema.pre('save', function(this: AttendanceRecordDocument, next: (error?: CallbackError) => void) {
   // Normalize date to midnight
   if (this.date) {
@@ -274,7 +335,7 @@ AttendanceRecordSchema.pre('save', function(this: AttendanceRecordDocument, next
   if (this.breaks?.length) {
     this.totalBreakMinutes = this.breaks.reduce((total: number, breakItem: IBreak) => {
       if (breakItem.end) {
-        return total + Math.round((breakItem.end.getTime() - breakItem.start.getTime()) / (1000 * 60));
+        return total + differenceInMinutes(breakItem.end, breakItem.start);
       }
       return total;
     }, 0);
@@ -284,25 +345,64 @@ AttendanceRecordSchema.pre('save', function(this: AttendanceRecordDocument, next
   if (this.namaz?.length) {
     this.totalNamazMinutes = this.namaz.reduce((total: number, namazItem: INamaz) => {
       if (namazItem.end) {
-        return total + Math.round((namazItem.end.getTime() - namazItem.start.getTime()) / (1000 * 60));
+        return total + differenceInMinutes(namazItem.end, namazItem.start);
       }
       return total;
     }, 0);
   }
 
-  // Calculate total hours if checked out
+  // Calculate total hours if checked out - UPDATED with night shift support
   if (this.checkOut) {
-    const workedMs = this.checkOut.getTime() - this.checkIn.getTime();
-    const workedHours = workedMs / (1000 * 60 * 60);
-    const breakHours = (this.totalBreakMinutes || 0) / 60;
-    const namazHours = (this.totalNamazMinutes || 0) / 60;
-    this.totalHours = parseFloat(Math.max(0, workedHours - breakHours - namazHours).toFixed(2));
+    this.totalHours = calculateTotalHours(
+      this.checkIn, 
+      this.checkOut, 
+      this.shift, 
+      this.totalBreakMinutes, 
+      this.totalNamazMinutes
+    );
   }
 
-  // Auto-set status based on check-in time for morning shift
-  if (this.shift === 'morning' && !this.status) {
+  // Auto-set status based on check-in time and shift - UPDATED for night shift
+  if (!this.status || this.status === 'present') {
     const checkInHour = this.checkIn.getHours();
-    this.status = checkInHour > 9 ? 'late' : 'present';
+    const checkInMinutes = this.checkIn.getMinutes();
+    
+    switch (this.shift) {
+      case 'morning':
+        // Morning shift: 8am-4pm, late if after 9am
+        if (checkInHour > 9 || (checkInHour === 9 && checkInMinutes > 0)) {
+          this.status = 'late';
+        }
+        break;
+      case 'evening':
+        // Evening shift: 4pm-12am, late if after 5pm
+        if (checkInHour > 17 || (checkInHour === 17 && checkInMinutes > 0)) {
+          this.status = 'late';
+        }
+        break;
+      case 'night':
+        // Night shift: 12am-8am
+        // Late if:
+        // - Checking in after 12:30am (for night shift starting at midnight)
+        // - Checking in after 8:30pm if starting evening (for 12am start)
+        if (checkInHour < 8) {
+          // Early morning check-in (0-7:59am)
+          if (checkInHour > 0 || (checkInHour === 0 && checkInMinutes > 30)) {
+            this.status = 'late';
+          }
+        } else if (checkInHour >= 18) {
+          // Evening check-in for night shift starting at midnight
+          if (checkInHour > 20 || (checkInHour === 20 && checkInMinutes > 30)) {
+            this.status = 'late';
+          }
+        }
+        break;
+      case 'flexible':
+      default:
+        // Flexible shifts are rarely marked as late
+        this.status = 'present';
+        break;
+    }
   }
 
   // Auto-detect remote work if location is far from office
@@ -423,6 +523,26 @@ AttendanceRecordSchema.statics.getLocationStats = function(
   ]);
 };
 
+// NEW: Method to get night shift records that span days
+AttendanceRecordSchema.statics.getNightShiftRecords = function(
+  employeeId: string, 
+  startDate: Date, 
+  endDate: Date
+) {
+  return this.find({
+    employeeId,
+    shift: 'night',
+    $or: [
+      { date: { $gte: startDate, $lte: endDate } },
+      { 
+        // Also include records where check-out spans to the next day
+        checkIn: { $gte: startDate, $lte: endDate },
+        checkOut: { $exists: true }
+      }
+    ]
+  }).sort({ checkIn: 1 });
+};
+
 interface AttendanceRecordModel extends Model<IAttendanceRecord> {
   getEmployeeAttendance: (
     employeeId: string, 
@@ -440,6 +560,12 @@ interface AttendanceRecordModel extends Model<IAttendanceRecord> {
     radius: number, 
     date: Date
   ) => Promise<LocationStatsResult[]>;
+
+  getNightShiftRecords: (
+    employeeId: string, 
+    startDate: Date, 
+    endDate: Date
+  ) => Promise<IAttendanceRecord[]>;
 }
 
 const AttendanceRecord = (mongoose.models.AttendanceRecord || 

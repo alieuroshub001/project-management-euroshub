@@ -1,6 +1,4 @@
-// components/employee/attendance/CurrentAttendance.tsx
-'use client';
-
+// Updated CurrentAttendance.tsx - Fixed getWorkingHours function for night shift
 import {
   CalendarOutlined,
   CheckCircleOutlined,
@@ -14,7 +12,7 @@ import {
   UserOutlined
 } from '@ant-design/icons';
 import { Alert, Button, Card, Col, List, Row, Spin, Statistic, Tag, Typography, message } from 'antd';
-import { differenceInMinutes, format, parseISO } from 'date-fns';
+import { differenceInMinutes, format, parseISO, addDays, isAfter, isBefore } from 'date-fns';
 import { useEffect, useState } from 'react';
 import BreakModal from './BreakModal';
 import CheckInModal from './CheckInModal';
@@ -23,6 +21,97 @@ import NamazModal from './NamazModal';
 import { AttendanceRecord } from './types';
 
 const { Text, Title } = Typography;
+
+// Define shift time boundaries
+const SHIFT_TIMES = {
+  morning: { start: 8, end: 16 }, // 8am to 4pm
+  evening: { start: 16, end: 24 }, // 4pm to 12am (midnight)
+  night: { start: 0, end: 8 }, // 12am to 8am (spans midnight)
+  flexible: { start: 0, end: 24 } // Anytime
+};
+
+// Helper function to get shift end time considering night shift boundary crossing
+const getShiftEndTime = (checkInTime: Date, shift: string): Date => {
+  const shiftConfig = SHIFT_TIMES[shift as keyof typeof SHIFT_TIMES];
+  if (!shiftConfig) return checkInTime; // Default to check-in time if unknown shift
+  
+  const checkInHour = checkInTime.getHours();
+  let endTime = new Date(checkInTime);
+  
+  if (shift === 'night') {
+    // Night shift: 12am-8am
+    if (checkInHour >= 18) {
+      // If checking in evening (6pm or later), shift ends next day at 8am
+      endTime = addDays(checkInTime, 1);
+      endTime.setHours(8, 0, 0, 0);
+    } else if (checkInHour < 8) {
+      // If checking in early morning (before 8am), shift ends same day at 8am
+      endTime.setHours(8, 0, 0, 0);
+    } else {
+      // If checking in during day (unusual for night shift), end at 8am next day
+      endTime = addDays(checkInTime, 1);
+      endTime.setHours(8, 0, 0, 0);
+    }
+  } else if (shift === 'evening') {
+    // Evening shift: 4pm-12am
+    if (checkInHour >= 16) {
+      // Normal evening check-in, ends at midnight same day
+      endTime.setHours(23, 59, 59, 999); // End of day
+    } else {
+      // Early check-in for evening shift, still ends at midnight
+      endTime.setHours(23, 59, 59, 999);
+    }
+  } else if (shift === 'morning') {
+    // Morning shift: 8am-4pm
+    endTime.setHours(16, 0, 0, 0);
+  } else {
+    // Flexible shift - no specific end time, use current time
+    return new Date();
+  }
+  
+  return endTime;
+};
+
+// Helper function to calculate working hours with proper night shift handling
+const calculateWorkingHours = (checkInTime: Date, checkOutTime: Date | null, shift: string, breakMinutes = 0, namazMinutes = 0): number => {
+  if (!checkOutTime) {
+    // If not checked out, calculate up to current time or shift end, whichever is earlier
+    const now = new Date();
+    const shiftEndTime = getShiftEndTime(checkInTime, shift);
+    
+    // For night shift, don't cap at current time if we're still in shift hours
+    let endTime = now;
+    
+    if (shift === 'night') {
+      const currentHour = now.getHours();
+      const checkInHour = checkInTime.getHours();
+      
+      // If it's currently within night shift hours (after 6pm or before 8am)
+      if (currentHour >= 18 || currentHour < 8) {
+        endTime = now; // Use current time
+      } else if (currentHour >= 8 && checkInHour >= 18) {
+        // If shift started yesterday evening and it's now past 8am, cap at 8am
+        const today8am = new Date(now);
+        today8am.setHours(8, 0, 0, 0);
+        endTime = today8am;
+      } else {
+        endTime = now;
+      }
+    } else {
+      // For other shifts, use minimum of current time and shift end time
+      endTime = isBefore(now, shiftEndTime) ? now : shiftEndTime;
+    }
+    
+    const workedMinutes = differenceInMinutes(endTime, checkInTime);
+    const netMinutes = Math.max(0, workedMinutes - breakMinutes - namazMinutes);
+    return netMinutes / 60;
+  } else {
+    // Normal calculation for checked out records
+    const workedMinutes = differenceInMinutes(checkOutTime, checkInTime);
+    const netMinutes = Math.max(0, workedMinutes - breakMinutes - namazMinutes);
+    return netMinutes / 60;
+  }
+};
 
 // Define types for API payloads
 interface BreakPayload {
@@ -45,7 +134,7 @@ interface CurrentAttendanceProps {
   onCheckOutSuccess: () => void;
   onRecordUpdate?: (record: AttendanceRecord) => void;
   loading: boolean;
-  allTodayRecords?: AttendanceRecord[]; // All today's records for display
+  allTodayRecords?: AttendanceRecord[];
 }
 
 export default function CurrentAttendance({ 
@@ -88,7 +177,7 @@ export default function CurrentAttendance({
     try {
       const payload: BreakPayload = {
         action: `break-${action}`,
-        recordId: currentRecord.id, // Specify which record to update
+        recordId: currentRecord.id,
       };
 
       if (action === 'start') {
@@ -134,7 +223,7 @@ export default function CurrentAttendance({
     try {
       const payload: NamazPayload = {
         action: `namaz-${action}`,
-        recordId: currentRecord.id, // Specify which record to update
+        recordId: currentRecord.id,
       };
 
       if (action === 'start') {
@@ -208,19 +297,46 @@ export default function CurrentAttendance({
     }
   };
 
+  // FIXED: Working hours calculation with proper night shift handling
   const getWorkingHours = () => {
     if (!currentRecord?.checkIn) return 0;
     
     const checkInTime = parseISO(currentRecord.checkIn);
-    const endTime = currentRecord.checkOut ? parseISO(currentRecord.checkOut) : currentTime;
-    const workedMinutes = differenceInMinutes(endTime, checkInTime);
+    const checkOutTime = currentRecord.checkOut ? parseISO(currentRecord.checkOut) : null;
+    const shift = currentRecord.shift || 'flexible';
     
-    // Subtract break time
+    // Get break and namaz minutes
     const breakMinutes = currentRecord.totalBreakMinutes || 0;
     const namazMinutes = currentRecord.totalNamazMinutes || 0;
     
-    const netMinutes = Math.max(0, workedMinutes - breakMinutes - namazMinutes);
-    return netMinutes / 60;
+    return calculateWorkingHours(checkInTime, checkOutTime, shift, breakMinutes, namazMinutes);
+  };
+
+  // Get shift progress for night shift workers
+  const getShiftProgress = () => {
+    if (!currentRecord?.checkIn || hasCheckedOut) return null;
+    
+    const shift = currentRecord.shift || 'flexible';
+    if (shift === 'flexible') return null;
+    
+    const checkInTime = parseISO(currentRecord.checkIn);
+    const shiftEndTime = getShiftEndTime(checkInTime, shift);
+    const now = new Date();
+    
+    // For night shift, show progress differently
+    if (shift === 'night') {
+      const totalShiftMinutes = 8 * 60; // 8 hours
+      const workedMinutes = differenceInMinutes(now, checkInTime);
+      const progress = Math.min((workedMinutes / totalShiftMinutes) * 100, 100);
+      
+      return {
+        progress: progress,
+        timeRemaining: Math.max(0, totalShiftMinutes - workedMinutes),
+        shiftEnd: shiftEndTime
+      };
+    }
+    
+    return null;
   };
 
   const getActiveBreakDuration = () => {
@@ -261,13 +377,14 @@ export default function CurrentAttendance({
 
   // Get today's completed records (checked out)
   const todayCompletedRecords = allTodayRecords.filter(record => !!record.checkOut);
+  const shiftProgress = getShiftProgress();
 
   console.log('CurrentAttendance render - currentRecord:', currentRecord);
   console.log('CurrentAttendance render - loading:', loading);
 
   if (loading && !currentRecord && allTodayRecords.length === 0) {
     return (
-      <Card title="Today&apos;s Attendance" className="mb-6">
+      <Card title="Today's Attendance" className="mb-6">
         <div className="flex justify-center items-center py-8">
           <Spin size="large" />
         </div>
@@ -282,7 +399,7 @@ export default function CurrentAttendance({
           <div className="flex justify-between items-center">
             <Title level={4} className="mb-0 flex items-center">
               <CalendarOutlined className="mr-2" />
-              Today&apos;s Attendance
+              Today's Attendance
             </Title>
             <Text type="secondary">
               {format(currentTime, 'MMM dd, yyyy - hh:mm a')}
@@ -311,6 +428,28 @@ export default function CurrentAttendance({
                 </div>
               </div>
             </div>
+
+            {/* Night Shift Progress Indicator */}
+            {shiftProgress && currentRecord.shift === 'night' && !hasCheckedOut && (
+              <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <Text strong className="text-indigo-800">Night Shift Progress</Text>
+                  <Text className="text-indigo-600 text-sm">
+                    Ends at {format(shiftProgress.shiftEnd, 'hh:mm a')}
+                  </Text>
+                </div>
+                <div className="w-full bg-indigo-200 rounded-full h-2 mb-2">
+                  <div 
+                    className="bg-indigo-600 h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${shiftProgress.progress}%` }}
+                  ></div>
+                </div>
+                <div className="flex justify-between text-xs text-indigo-600">
+                  <span>{shiftProgress.progress.toFixed(1)}% complete</span>
+                  <span>{formatDuration(shiftProgress.timeRemaining)} remaining</span>
+                </div>
+              </div>
+            )}
 
             {/* Main Stats */}
             <Row gutter={[16, 16]}>
@@ -589,7 +728,7 @@ export default function CurrentAttendance({
             </div>
             <Title level={3} type="secondary" className="mb-2">No Active Session</Title>
             <Text type="secondary" className="block mb-6 text-lg">
-              You haven&apos;t checked in today or have already checked out
+              You haven't checked in today or have already checked out
             </Text>
             <Button 
               type="primary" 

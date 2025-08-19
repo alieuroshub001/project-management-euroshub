@@ -1,4 +1,4 @@
-// app/api/employee/attendance/route.ts - UPDATED VERSION with multiple check-ins and mandatory tasks
+// app/api/employee/attendance/route.ts - UPDATED with night shift boundary handling
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import AttendanceRecord from '@/models/AttendanceRecord';
@@ -6,6 +6,50 @@ import connectToDatabase from '@/lib/db';
 import { authOptions } from '@/lib/auth';
 import { AttendanceStatus, ShiftType } from '@/types';
 import { FilterQuery } from 'mongoose';
+import { addDays, differenceInMinutes } from 'date-fns';
+
+// Helper function to get the correct attendance date for night shifts
+const getAttendanceDateForNightShift = (checkInTime: Date, shift: string): Date => {
+  const date = new Date(checkInTime);
+  date.setHours(0, 0, 0, 0);
+  
+  // For night shifts starting in the evening, the "attendance date" is the next day
+  if (shift === 'night' && checkInTime.getHours() >= 18) {
+    return addDays(date, 1);
+  }
+  
+  return date;
+};
+
+// Helper function to find active night shift records across day boundaries
+const findActiveNightShiftRecord = async (employeeId: string, checkInTime: Date) => {
+  const checkInHour = checkInTime.getHours();
+  
+  // If checking in during typical night shift hours
+  if (checkInHour >= 18 || checkInHour < 8) {
+    const today = new Date(checkInTime);
+    today.setHours(0, 0, 0, 0);
+    
+    const yesterday = addDays(today, -1);
+    const tomorrow = addDays(today, 1);
+    
+    // Look for active night shift records from yesterday evening or today early morning
+    const activeRecord = await AttendanceRecord.findOne({
+      employeeId,
+      shift: 'night',
+      checkOut: { $exists: false },
+      $or: [
+        { date: yesterday }, // Started yesterday evening
+        { date: today }, // Started today early morning
+        { date: tomorrow } // Edge case: started very late and dated for tomorrow
+      ]
+    }).sort({ checkIn: -1 });
+    
+    return activeRecord;
+  }
+  
+  return null;
+};
 
 // GET all attendance records for the current user with optional filters
 export async function GET(request: Request) {
@@ -101,7 +145,7 @@ export async function GET(request: Request) {
   }
 }
 
-// POST create a new attendance record (check-in) - UPDATED to always allow multiple check-ins
+// POST create a new attendance record (check-in) - UPDATED with night shift support
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
   if (!session?.user) {
@@ -122,16 +166,39 @@ export async function POST(request: Request) {
     
     await connectToDatabase();
 
-    // Check if there are existing records for today
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const now = new Date();
+    
+    // For night shifts, handle cross-day boundary properly
+    let attendanceDate: Date;
+    let existingRecord = null;
+    
+    if (shift === 'night') {
+      attendanceDate = getAttendanceDateForNightShift(now, shift);
+      
+      // Check for active night shift records across day boundaries
+      existingRecord = await findActiveNightShiftRecord(session.user.id, now);
+      
+      // Also check for records on the calculated attendance date
+      if (!existingRecord) {
+        const recordsForDate = await AttendanceRecord.find({
+          employeeId: session.user.id,
+          date: attendanceDate,
+        }).sort({ checkIn: -1 }).limit(1);
+        
+        existingRecord = recordsForDate[0];
+      }
+    } else {
+      // For other shifts, use standard today logic
+      attendanceDate = new Date(now);
+      attendanceDate.setHours(0, 0, 0, 0);
+      
+      const existingRecords = await AttendanceRecord.find({
+        employeeId: session.user.id,
+        date: attendanceDate,
+      }).sort({ checkIn: -1 }).limit(1);
 
-    const existingRecords = await AttendanceRecord.find({
-      employeeId: session.user.id,
-      date: today,
-    }).sort({ checkIn: -1 }).limit(1); // Get the most recent record
-
-    const existingRecord = existingRecords[0];
+      existingRecord = existingRecords[0];
+    }
 
     // If there's an existing record and user hasn't confirmed, return warning
     if (existingRecord && !forceCheckIn) {
@@ -144,22 +211,42 @@ export async function POST(request: Request) {
             id: existingRecord._id.toString()
           }
         },
-        { status: 409 } // Conflict status
+        { status: 409 }
       );
     }
-
-    const now = new Date();
     
     // Determine status based on shift and time
     let status: AttendanceStatus = 'present';
-    if (shift === 'morning') {
-      const checkInHour = now.getHours();
-      status = checkInHour > 9 ? 'late' : 'present';
+    const checkInHour = now.getHours();
+    const checkInMinutes = now.getMinutes();
+    
+    switch (shift) {
+      case 'morning':
+        status = checkInHour > 9 || (checkInHour === 9 && checkInMinutes > 0) ? 'late' : 'present';
+        break;
+      case 'evening':
+        status = checkInHour > 17 || (checkInHour === 17 && checkInMinutes > 0) ? 'late' : 'present';
+        break;
+      case 'night':
+        // Night shift late logic
+        if (checkInHour < 8) {
+          // Early morning check-in (0-7:59am)
+          status = checkInHour > 0 || (checkInHour === 0 && checkInMinutes > 30) ? 'late' : 'present';
+        } else if (checkInHour >= 18) {
+          // Evening check-in for night shift
+          status = checkInHour > 20 || (checkInHour === 20 && checkInMinutes > 30) ? 'late' : 'present';
+        } else {
+          // Unusual timing for night shift
+          status = 'present';
+        }
+        break;
+      default:
+        status = 'present';
     }
 
     const recordData = {
       employeeId: session.user.id,
-      date: today,
+      date: attendanceDate,
       checkIn: now,
       status,
       shift: shift as ShiftType,
@@ -204,7 +291,7 @@ export async function POST(request: Request) {
   }
 }
 
-// PUT update attendance record (check-out, breaks, namaz, etc) - UPDATED to require tasks for checkout
+// PUT update attendance record (check-out, breaks, namaz, etc) - UPDATED for night shift
 export async function PUT(request: Request) {
   const session = await getServerSession(authOptions);
   if (!session?.user) {
@@ -221,7 +308,7 @@ export async function PUT(request: Request) {
       namazType,
       location,
       notes,
-      recordId // Optional: specify which record to update if multiple exist
+      recordId
     } = await request.json();
     
     console.log('PUT request:', { action, checkOutReason, tasksCompleted, breakType, breakNotes, namazType, location, notes, recordId });
@@ -237,15 +324,25 @@ export async function PUT(request: Request) {
         employeeId: session.user.id,
       });
     } else {
-      // Find the most recent active record for today (existing behavior)
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
+      // Find the most recent active record - UPDATED for night shift support
+      const now = new Date();
+      
+      // For night shift workers, we need to check across day boundaries
+      const activeNightRecord = await findActiveNightShiftRecord(session.user.id, now);
+      
+      if (activeNightRecord) {
+        record = activeNightRecord;
+      } else {
+        // Standard logic for other shifts or if no active night shift found
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
 
-      record = await AttendanceRecord.findOne({
-        employeeId: session.user.id,
-        date: today,
-        checkOut: { $exists: false } // Only get records without checkout
-      }).sort({ checkIn: -1 }); // Get the latest active check-in for today
+        record = await AttendanceRecord.findOne({
+          employeeId: session.user.id,
+          date: today,
+          checkOut: { $exists: false }
+        }).sort({ checkIn: -1 });
+      }
     }
 
     if (!record) {
@@ -302,6 +399,29 @@ export async function PUT(request: Request) {
             },
             { status: 400 }
           );
+        }
+
+        // Validate checkout time for night shifts
+        if (record.shift === 'night') {
+          const checkInTime = new Date(record.checkIn);
+          const checkInHour = checkInTime.getHours();
+          const checkOutHour = now.getHours();
+          
+          // If checked in during evening and it's now early morning, this is normal
+          // If checked in early morning and it's still early morning, this is normal
+          // But don't allow checkout too far in the future
+          const maxCheckoutTime = addDays(checkInTime, 1);
+          maxCheckoutTime.setHours(10, 0, 0, 0); // Max 10am next day for night shift
+          
+          if (now > maxCheckoutTime) {
+            return NextResponse.json(
+              { 
+                error: 'Invalid checkout time',
+                message: 'Night shift checkout time seems too far from check-in time.'
+              },
+              { status: 400 }
+            );
+          }
         }
         
         record.checkOut = now;
@@ -492,18 +612,17 @@ export async function DELETE(request: Request) {
       );
     }
 
-    // Only allow deletion of today's record or if user is admin
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    // Only allow deletion of recent records or if user is admin
+    const now = new Date();
     const recordDate = new Date(record.date);
-    recordDate.setHours(0, 0, 0, 0);
-
-    const isToday = recordDate.getTime() === today.getTime();
+    const daysDiff = Math.abs(differenceInMinutes(now, recordDate)) / (60 * 24);
+    
+    const isRecent = daysDiff <= 1; // Within 24 hours
     const isAdmin = ['admin', 'superadmin', 'hr'].includes(session.user.role);
 
-    if (!isToday && !isAdmin) {
+    if (!isRecent && !isAdmin) {
       return NextResponse.json(
-        { error: 'Can only delete today\'s attendance record' },
+        { error: 'Can only delete recent attendance records (within 24 hours)' },
         { status: 403 }
       );
     }
