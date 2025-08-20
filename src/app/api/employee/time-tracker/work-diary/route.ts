@@ -1,4 +1,4 @@
-// app/api/work-diary/route.ts
+// app/api/employee/time-tracker/work-diary/route.ts
 import { NextResponse } from 'next/server';
 import { WorkDiary } from '@/models/TimeTracker';
 import connectToDatabase from '@/lib/db';

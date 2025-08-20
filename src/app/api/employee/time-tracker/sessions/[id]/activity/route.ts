@@ -1,4 +1,4 @@
-// app/api/sessions/[id]/activity/route.ts
+// app/api/employee/time-tracker/sessions/[id]/activity/route.ts
 import { NextResponse } from 'next/server';
 import { TimeTrackerSession } from '@/models/TimeTracker';
 import connectToDatabase from '@/lib/db';
