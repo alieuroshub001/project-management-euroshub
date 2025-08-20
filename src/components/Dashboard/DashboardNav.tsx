@@ -42,31 +42,27 @@ export default function DashboardNav({ role }: DashboardNavProps) {
 
   const roleLinks: Record<UserRole, NavLink[]> = {
     superadmin: [
-      { href: '/dashboard/projects', name: 'Project Management', icon: FolderKanban },
-      { href: '/dashboard/hr', name: 'HR Management', icon: Users },
+      { href: '/dashboard/superadmin/projects', name: 'Project Management', icon: FolderKanban },
       { href: '/dashboard/superadmin/my-chats', name: 'Communication', icon: MessageSquare },
-      { href: '/dashboard/superadmin/tracker', name: 'Time Tracking', icon: Clock },
-      { href: '/dashboard/reporting', name: 'Reports & Analytics', icon: BarChart3 },
-      { href: '/dashboard/admin', name: 'System Administration', icon: Settings },
-      { href: '/dashboard/superadmin/users', name: 'User Management', icon: UserCog },
+      { href: '/dashboard/superadmin/users-management', name: 'User Management', icon: UserCog },
+      { href: '/dashboard/superadmin/attendance', name: 'Attendance', icon: Clock },
+      { href: '/dashboard/superadmin/leave-reuqests', name: 'Leave Requests', icon: Calendar },
+      { href: '/dashboard/superadmin/time-tracking-reports', name: 'Tracking Reports', icon: Clock },
+
     ],
     admin: [
-      { href: '/dashboard/projects', name: 'Project Management', icon: FolderKanban },
-      { href: '/dashboard/hr/directory', name: 'Employee Directory', icon: Users },
+      { href: '/dashboard/admin/projects', name: 'Project Management', icon: FolderKanban },
       { href: '/dashboard/admin/my-chats', name: 'Communication', icon: MessageSquare },
-      { href: '/dashboard/time-tracking', name: 'Time Tracking', icon: Clock },
-      { href: '/dashboard/reporting', name: 'Reports & Analytics', icon: BarChart3 },
-      { href: '/dashboard/admin', name: 'Administration', icon: Settings },
+      { href: '/dashboard/admin/attendance', name: 'User Management', icon: UserCog },
+      { href: '/dashboard/admin/time-tracking-reports', name: 'Tracking Reports', icon: Clock },
+      { href: '/dashboard/admin/leave-reuqests', name: 'Leave Requests', icon: Calendar },
+
     ],
     hr: [
       { href: '/dashboard/hr', name: 'HR Management', icon: Building },
-      { href: '/dashboard/hr/directory', name: 'Employee Directory', icon: Users },
-      { href: '/dashboard/hr/leave', name: 'Leave', icon: Calendar },
-      { href: '/dashboard/hr/documents', name: 'Document Management', icon: FileText },
-      { href: '/dashboard/hr/onboarding', name: 'Onboarding/Offboarding', icon: UserPlus },
+      { href: '/dashboard/hr/leave-requests', name: 'Leave Requests', icon: Calendar },
       { href: '/dashboard/hr/my-chats', name: 'Communication', icon: MessageSquare },
       { href: '/dashboard/hr/attendance', name: 'Attendance', icon: Calendar },
-      { href: '/dashboard/reporting/hr', name: 'HR Reports', icon: BarChart3 },
     ],
     employee: [
       { href: '/dashboard/employee/my-projects', name: 'My Projects', icon: FolderKanban },
@@ -78,10 +74,9 @@ export default function DashboardNav({ role }: DashboardNavProps) {
     ],
     client: [
       { href: '/dashboard/client/client-projects', name: 'My Projects', icon: FolderKanban },
-      { href: '/dashboard/client/projects/progress', name: 'Project Progress', icon: TrendingUp },
+      { href: '/dashboard/client/my-projects', name: 'Project Progress', icon: TrendingUp },
       { href: '/dashboard/client/my-chats', name: 'Communication', icon: MessageSquare },
-      { href: '/dashboard/client/reporting/client', name: 'Project Reports', icon: BarChart3 },
-      { href: '/dashboard/client/time-tracking/view', name: 'Time Reports', icon: Eye },
+
     ],
   };
 
