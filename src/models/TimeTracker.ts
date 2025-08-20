@@ -112,7 +112,7 @@ const ScreenshotSchema = new Schema<IScreenshotDocument>({
   public_id: { 
     type: String, 
     required: [true, 'Cloudinary public ID is required'],
-    unique: true
+    // Do not set unique at the subdocument level to avoid indexing null/missing values across docs
   },
   timestamp: { 
     type: Date, 
@@ -616,6 +616,13 @@ TimeTrackerSessionSchema.index({ status: 1, startTime: -1 });
 TimeTrackerSessionSchema.index({ 'screenshots.timestamp': 1 });
 TimeTrackerSessionSchema.index({ 'activityLevels.timestamp': 1 });
 TimeTrackerSessionSchema.index({ isApproved: 1, startTime: -1 });
+
+// Enforce uniqueness of screenshot public IDs only when present
+// Using a partial index avoids duplicate-key errors on null/missing fields when creating sessions
+TimeTrackerSessionSchema.index(
+  { 'screenshots.public_id': 1 },
+  { unique: true, partialFilterExpression: { 'screenshots.public_id': { $exists: true, $type: 'string' } } }
+);
 
 ScreenshotSchema.index({ timestamp: -1 });
 ScreenshotSchema.index({ intervalStart: 1, intervalEnd: 1 });

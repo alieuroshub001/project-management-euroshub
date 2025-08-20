@@ -57,7 +57,7 @@ export async function POST(request: Request, context: any) {
     const updatedSession = await TimeTrackerSession.findByIdAndUpdate(
       sessionId,
       { $push: { screenshots: screenshot } },
-      { new: true }
+      { new: true, runValidators: true }
     );
     
     return NextResponse.json({
