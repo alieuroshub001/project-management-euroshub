@@ -1,4 +1,5 @@
 // app/api/employee/time-tracker/sessions/[id]/screenshots/route.ts
+export const runtime = 'nodejs';
 import { NextResponse } from 'next/server';
 import { TimeTrackerSession } from '@/models/TimeTracker';
 import connectToDatabase from '@/lib/db';

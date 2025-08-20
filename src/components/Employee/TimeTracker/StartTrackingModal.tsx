@@ -189,7 +189,7 @@ export const StartTrackingModal: React.FC<StartTrackingModalProps> = ({
               Session Settings
             </h4>
             <ul className="text-xs text-blue-800 space-y-1">
-              <li>• Screenshots will be taken automatically every 10 minutes</li>
+              <li>• Screenshots will be taken automatically every 1 minute</li>
               <li>• Activity tracking will monitor your productivity</li>
               <li>• You can pause/resume the session at any time</li>
               <li>• Add tasks manually during or after the session</li>

@@ -36,6 +36,7 @@ export const TimeTrackerProvider: React.FC<TimeTrackerProviderProps> = ({ childr
   const [error, setError] = useState<string | null>(null);
   const [screenshotInterval, setScreenshotInterval] = useState<NodeJS.Timeout | null>(null);
   const [activityInterval, setActivityInterval] = useState<NodeJS.Timeout | null>(null);
+  const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
 
   // Computed states
   const isTracking = currentSession?.status === 'running';
@@ -181,11 +182,15 @@ export const TimeTrackerProvider: React.FC<TimeTrackerProviderProps> = ({ childr
   };
 
   const setupScreenshotCapture = () => {
-    if (!settings?.screenshotFrequency || !currentSession?.id) return;
+    if (!currentSession?.id) return;
+
+    // Default to 1 minute if settings value is missing or invalid
+    const minutes = Math.max(1, Number(settings?.screenshotFrequency) || 1);
+    const intervalMs = minutes * 60 * 1000;
 
     const interval = setInterval(() => {
       captureScreenshot();
-    }, settings.screenshotFrequency * 60 * 1000);
+    }, intervalMs);
 
     setScreenshotInterval(interval);
   };
@@ -255,6 +260,10 @@ export const TimeTrackerProvider: React.FC<TimeTrackerProviderProps> = ({ childr
       if (data.success) {
         setCurrentSession(data.data);
         toast.success('Time tracking started');
+        // Prompt for screen capture immediately (user gesture context)
+        if (settings?.screenshotsRequired) {
+          captureScreenshot();
+        }
       } else {
         setError(data.message);
         toast.error(data.message);
@@ -293,6 +302,12 @@ export const TimeTrackerProvider: React.FC<TimeTrackerProviderProps> = ({ childr
       setError('Failed to stop tracking');
       toast.error('Failed to stop tracking');
     } finally {
+      // Cleanup capture stream and intervals
+      if (screenStream) {
+        screenStream.getTracks().forEach(t => t.stop());
+        setScreenStream(null);
+      }
+      cleanupScreenshotCapture();
       setLoading(false);
     }
   };
@@ -323,6 +338,12 @@ export const TimeTrackerProvider: React.FC<TimeTrackerProviderProps> = ({ childr
       setError('Failed to pause tracking');
       toast.error('Failed to pause tracking');
     } finally {
+      // Pause: stop capturing stream and interval
+      if (screenStream) {
+        screenStream.getTracks().forEach(t => t.stop());
+        setScreenStream(null);
+      }
+      cleanupScreenshotCapture();
       setLoading(false);
     }
   };
@@ -353,6 +374,7 @@ export const TimeTrackerProvider: React.FC<TimeTrackerProviderProps> = ({ childr
       setError('Failed to resume tracking');
       toast.error('Failed to resume tracking');
     } finally {
+      // Will reinitialize capture via useEffect
       setLoading(false);
     }
   };
@@ -361,17 +383,21 @@ export const TimeTrackerProvider: React.FC<TimeTrackerProviderProps> = ({ childr
     if (!currentSession?.id) return;
 
     try {
-      // Request screen capture
-      const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: true,
-        audio: false
-      } as DisplayMediaStreamOptions);
+      // Ensure we have or request a persistent screen stream
+      let stream = screenStream;
+      if (!stream) {
+        stream = await navigator.mediaDevices.getDisplayMedia({
+          video: true,
+          audio: false
+        } as DisplayMediaStreamOptions);
+        setScreenStream(stream);
+      }
 
       const video = document.createElement('video');
       video.srcObject = stream;
-      video.play();
+      await video.play();
 
-      video.addEventListener('loadedmetadata', () => {
+      const onLoaded = async () => {
         const canvas = document.createElement('canvas');
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
@@ -386,7 +412,8 @@ export const TimeTrackerProvider: React.FC<TimeTrackerProviderProps> = ({ childr
           formData.append('file', blob, 'screenshot.png');
           
           const now = new Date();
-          const intervalStart = new Date(now.getTime() - (10 * 60 * 1000)); // 10 minutes ago
+          const minutes = Math.max(1, Number(settings?.screenshotFrequency) || 1);
+          const intervalStart = new Date(now.getTime() - minutes * 60 * 1000);
           
           formData.append('activity', JSON.stringify({
             intervalStart,
@@ -408,10 +435,11 @@ export const TimeTrackerProvider: React.FC<TimeTrackerProviderProps> = ({ childr
             const data = await response.json();
             setCurrentSession(data.data);
           }
-
-          stream.getTracks().forEach(track => track.stop());
         }, 'image/png');
-      });
+
+        video.removeEventListener('loadedmetadata', onLoaded);
+      };
+      video.addEventListener('loadedmetadata', onLoaded);
     } catch (error) {
       console.error('Error capturing screenshot:', error);
     }

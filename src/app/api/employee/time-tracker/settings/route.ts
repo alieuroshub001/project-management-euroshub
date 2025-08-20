@@ -18,11 +18,21 @@ export async function GET(request: Request) {
       } satisfies ITimeTrackerApiResponse, { status: 400 });
     }
     
-    const settings = await TimeTrackerSettings.findOne({ employeeId });
-    
+    let settings = await TimeTrackerSettings.findOne({ employeeId });
+
+    // Auto-provision default settings if none exist, with 1-minute screenshots
+    if (!settings) {
+      settings = await TimeTrackerSettings.create({
+        employeeId,
+        screenshotFrequency: 1,
+        screenshotsRequired: true,
+        activityTrackingEnabled: true,
+      });
+    }
+
     return NextResponse.json({
         success: true,
-        data: settings || {},
+        data: settings,
         message: ''
     } satisfies ITimeTrackerApiResponse);
   } catch (error) {

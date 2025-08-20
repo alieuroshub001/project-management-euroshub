@@ -1,5 +1,6 @@
 // app/api/employee/time-tracker/sessions/route.ts
 import { NextResponse } from 'next/server';
+import mongoose from 'mongoose';
 import { TimeTrackerSession } from '@/models/TimeTracker';
 import connectToDatabase from '@/lib/db';
 import { ITimeTrackerApiResponse } from '@/types';
@@ -10,18 +11,40 @@ export async function POST(request: Request) {
   
   try {
     const { employeeId, title, projectId, description } = await request.json();
+
+    // Validate required fields
+    if (!employeeId || !mongoose.Types.ObjectId.isValid(employeeId)) {
+      return NextResponse.json({
+        success: false,
+        message: 'Valid employeeId is required'
+      } satisfies ITimeTrackerApiResponse, { status: 400 });
+    }
+
+    if (!title || typeof title !== 'string' || title.trim().length < 3) {
+      return NextResponse.json({
+        success: false,
+        message: 'Title is required and must be at least 3 characters'
+      } satisfies ITimeTrackerApiResponse, { status: 400 });
+    }
     
     // Stop any existing active sessions
     await TimeTrackerSession.stopAllActiveSessions(employeeId);
     
-    const newSession = await TimeTrackerSession.create({
+    // Build create payload with safe types
+    const createPayload: Record<string, unknown> = {
       employeeId,
-      title,
-      projectId,
-      description,
+      title: title.trim(),
+      description: description ?? '',
       status: 'running',
       startTime: new Date()
-    });
+    };
+
+    // Only include projectId if it's a valid ObjectId
+    if (projectId && typeof projectId === 'string' && mongoose.Types.ObjectId.isValid(projectId)) {
+      createPayload.projectId = projectId;
+    }
+
+    const newSession = await TimeTrackerSession.create(createPayload);
     
     return NextResponse.json({
       success: true,
@@ -29,6 +52,7 @@ export async function POST(request: Request) {
       data: newSession
     } satisfies ITimeTrackerApiResponse);
   } catch (error) {
+    console.error('Error starting time tracker session:', error);
     return NextResponse.json({
       success: false,
       message: 'Failed to start session',
