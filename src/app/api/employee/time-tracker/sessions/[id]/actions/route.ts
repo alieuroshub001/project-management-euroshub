@@ -4,10 +4,11 @@ import { TimeTrackerSession } from '@/models/TimeTracker';
 import connectToDatabase from '@/lib/db';
 import { ITimeTrackerApiResponse } from '@/types';
 
-export async function POST(request: Request, { params }: { params: { id: string } }) {
+export async function POST(request: Request, context: any) {
   await connectToDatabase();
   
   try {
+    const { params } = context || { params: { id: '' } };
     const { action } = await request.json();
     const sessionId = params.id;
     

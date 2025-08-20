@@ -80,12 +80,14 @@ export const TaskManager: React.FC<TaskManagerProps> = ({ session }) => {
 
   const tasks = session.tasksCompleted || [];
 
-  const getCategoryInfo = (category: TaskCategory) => {
-    return taskCategories.find(c => c.value === category) || taskCategories[6];
+  const getCategoryInfo = (category: TaskCategory | undefined) => {
+    const key = category ?? 'other';
+    return taskCategories.find(c => c.value === key) || taskCategories[6];
   };
 
-  const getPriorityInfo = (priority: TaskPriority) => {
-    return taskPriorities.find(p => p.value === priority) || taskPriorities[1];
+  const getPriorityInfo = (priority: TaskPriority | undefined) => {
+    const key = priority ?? 'medium';
+    return taskPriorities.find(p => p.value === key) || taskPriorities[1];
   };
 
   const handleAddTask = async () => {

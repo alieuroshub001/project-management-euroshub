@@ -363,8 +363,9 @@ export const TimeTrackerProvider: React.FC<TimeTrackerProviderProps> = ({ childr
     try {
       // Request screen capture
       const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: { mediaSource: 'screen' }
-      });
+        video: true,
+        audio: false
+      } as DisplayMediaStreamOptions);
 
       const video = document.createElement('video');
       video.srcObject = stream;
