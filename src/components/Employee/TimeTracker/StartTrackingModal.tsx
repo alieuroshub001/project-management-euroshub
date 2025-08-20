@@ -136,15 +136,15 @@ export const StartTrackingModal: React.FC<StartTrackingModalProps> = ({
           <div className="space-y-2">
             <Label htmlFor="project">Project (Optional)</Label>
             <Select
-              value={formData.projectId}
-              onValueChange={(value: string) => handleInputChange('projectId', value)}
+              value={formData.projectId || 'none'}
+              onValueChange={(value: string) => handleInputChange('projectId', value === 'none' ? '' : value)}
               disabled={loading}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Select a project..." />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">No Project</SelectItem>
+                <SelectItem value="none">No Project</SelectItem>
                 {mockProjects.map((project) => (
                   <SelectItem key={project.id} value={project.id}>
                     <div>
