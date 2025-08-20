@@ -181,7 +181,7 @@ export default function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
           {chatType === 'channel' ? 'Create Channel' : 'Start Chat'}
         </Button>,
       ]}
-      destroyOnClose={true}
+      destroyOnHidden={true}
     >
       <div className="space-y-4">
         {/* Chat Type Selector */}
