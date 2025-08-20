@@ -293,14 +293,11 @@ export const validateTaskData = (task: {
 // Screen capture utilities
 export const requestScreenCapture = async (): Promise<MediaStream | null> => {
   try {
-    return await navigator.mediaDevices.getDisplayMedia({
-      video: {
-        mediaSource: 'screen',
-        width: { ideal: 1920 },
-        height: { ideal: 1080 }
-      },
+    const constraints: DisplayMediaStreamOptions = {
+      video: true,
       audio: false
-    });
+    };
+    return await navigator.mediaDevices.getDisplayMedia(constraints);
   } catch (error) {
     console.error('Failed to capture screen:', error);
     return null;

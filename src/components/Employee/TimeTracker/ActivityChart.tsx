@@ -345,9 +345,10 @@ export const ActivityChart: React.FC<ActivityChartProps> = ({ session }) => {
                         innerRadius={60}
                         outerRadius={100}
                         dataKey="value"
-                        label={({ name, value, percent }) => 
-                          `${name}: ${value} (${(percent * 100).toFixed(1)}%)`
-                        }
+                        label={({ name, value, percent }) => {
+                          const pct = typeof percent === 'number' ? percent : 0;
+                          return `${name}: ${value} (${(pct * 100).toFixed(1)}%)`;
+                        }}
                       >
                         {stats.activityDistribution.map((entry, index) => (
                           <Cell key={`cell-${index}`} fill={entry.color} />

@@ -5,10 +5,11 @@ import connectToDatabase from '@/lib/db';
 import { ITimeTrackerApiResponse } from '@/types';
 import { uploadToCloudinary } from '@/lib/cloudinary1';
 
-export async function POST(request: Request, { params }: { params: { id: string } }) {
+export async function POST(request: Request, context: any) {
   await connectToDatabase();
   
   try {
+    const { params } = context || { params: { id: '' } };
     const sessionId = params.id;
     const formData = await request.formData();
     const file = formData.get('file') as File;

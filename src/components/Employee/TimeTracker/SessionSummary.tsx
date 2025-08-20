@@ -68,7 +68,8 @@ export const SessionSummary: React.FC<SessionSummaryProps> = ({ session }) => {
 
     // Task breakdown by category
     const tasksByCategory = tasks.reduce((acc, task) => {
-      acc[task.category] = (acc[task.category] || 0) + 1;
+      const categoryKey = task.category || 'other';
+      acc[categoryKey] = (acc[categoryKey] || 0) + 1;
       return acc;
     }, {} as Record<string, number>);
 
