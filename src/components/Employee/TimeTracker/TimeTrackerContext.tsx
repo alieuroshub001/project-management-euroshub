@@ -12,6 +12,7 @@ import {
   ITimeTrackerContextValue,
   TimeTrackerStatus 
 } from '@/types';
+import { combineAppliedNumericalValuesIncludingErrorValues } from 'recharts/types/state/selectors/axisSelectors';
 
 const TimeTrackerContext = createContext<ITimeTrackerContextValue | undefined>(undefined);
 
@@ -37,6 +38,7 @@ export const TimeTrackerProvider: React.FC<TimeTrackerProviderProps> = ({ childr
   const [screenshotInterval, setScreenshotInterval] = useState<NodeJS.Timeout | null>(null);
   const [activityInterval, setActivityInterval] = useState<NodeJS.Timeout | null>(null);
   const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
+  const [permissionGranted, setPermissionGranted] = useState(false);
 
   // Computed states
   const isTracking = currentSession?.status === 'running';
@@ -96,14 +98,21 @@ export const TimeTrackerProvider: React.FC<TimeTrackerProviderProps> = ({ childr
 
   // Setup screenshot capturing
   useEffect(() => {
-    if (isTracking && settings?.screenshotsRequired) {
+    if (isTracking && settings?.screenshotsRequired && permissionGranted && screenStream) {
       setupScreenshotCapture();
     } else {
       cleanupScreenshotCapture();
     }
 
     return () => cleanupScreenshotCapture();
-  }, [isTracking, settings?.screenshotsRequired, settings?.screenshotFrequency]);
+  }, [isTracking, settings?.screenshotsRequired, settings?.screenshotFrequency, permissionGranted, screenStream]);
+
+  // Cleanup stream when tracking stops or pauses
+  useEffect(() => {
+    if (!isTracking) {
+      cleanupScreenStream();
+    }
+  }, [isTracking]);
 
   const fetchActiveSession = async () => {
     if (!session?.user?.id) return;
@@ -181,15 +190,48 @@ export const TimeTrackerProvider: React.FC<TimeTrackerProviderProps> = ({ childr
     }
   };
 
+  const requestScreenPermission = async (): Promise<boolean> => {
+    try {
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        video: true,
+        audio: false
+      } as DisplayMediaStreamOptions);
+      
+      setScreenStream(stream);
+      setPermissionGranted(true);
+      
+      // Handle when user stops sharing via browser controls
+      stream.getVideoTracks()[0].addEventListener('ended', () => {
+        console.log('Screen sharing ended by user');
+        setScreenStream(null);
+        setPermissionGranted(false);
+        cleanupScreenshotCapture();
+        toast.warning('Screen sharing stopped. Screenshots disabled.');
+      });
+      
+      return true;
+    } catch (error) {
+      console.error('Screen permission denied:', error);
+      setPermissionGranted(false);
+      toast.error('Screen sharing permission required for screenshots');
+      return false;
+    }
+  };
+
   const setupScreenshotCapture = () => {
-    if (!currentSession?.id) return;
+    if (!currentSession?.id || !screenStream) return;
 
     // Default to 1 minute if settings value is missing or invalid
     const minutes = Math.max(1, Number(settings?.screenshotFrequency) || 1);
     const intervalMs = minutes * 60 * 1000;
 
     const interval = setInterval(() => {
-      captureScreenshot();
+      if (screenStream && screenStream.active) {
+        captureScreenshot();
+      } else {
+        console.warn('Screen stream not active, skipping screenshot');
+        cleanupScreenshotCapture();
+      }
     }, intervalMs);
 
     setScreenshotInterval(interval);
@@ -199,6 +241,14 @@ export const TimeTrackerProvider: React.FC<TimeTrackerProviderProps> = ({ childr
     if (screenshotInterval) {
       clearInterval(screenshotInterval);
       setScreenshotInterval(null);
+    }
+  };
+
+  const cleanupScreenStream = () => {
+    if (screenStream) {
+      screenStream.getTracks().forEach(track => track.stop());
+      setScreenStream(null);
+      setPermissionGranted(false);
     }
   };
 
@@ -259,10 +309,19 @@ export const TimeTrackerProvider: React.FC<TimeTrackerProviderProps> = ({ childr
 
       if (data.success) {
         setCurrentSession(data.data);
-        toast.success('Time tracking started');
-        // Prompt for screen capture immediately (user gesture context)
+        
+        // Request screen permission only once when starting
         if (settings?.screenshotsRequired) {
-          captureScreenshot();
+          const permissionGranted = await requestScreenPermission();
+          if (permissionGranted) {
+            toast.success('Time tracking started with screenshots enabled');
+            // Take first screenshot immediately
+            setTimeout(() => captureScreenshot(), 1000);
+          } else {
+            toast.success('Time tracking started (screenshots disabled - permission required)');
+          }
+        } else {
+          toast.success('Time tracking started');
         }
       } else {
         setError(data.message);
@@ -302,11 +361,8 @@ export const TimeTrackerProvider: React.FC<TimeTrackerProviderProps> = ({ childr
       setError('Failed to stop tracking');
       toast.error('Failed to stop tracking');
     } finally {
-      // Cleanup capture stream and intervals
-      if (screenStream) {
-        screenStream.getTracks().forEach(t => t.stop());
-        setScreenStream(null);
-      }
+      // Cleanup everything when stopping
+      cleanupScreenStream();
       cleanupScreenshotCapture();
       setLoading(false);
     }
@@ -338,11 +394,7 @@ export const TimeTrackerProvider: React.FC<TimeTrackerProviderProps> = ({ childr
       setError('Failed to pause tracking');
       toast.error('Failed to pause tracking');
     } finally {
-      // Pause: stop capturing stream and interval
-      if (screenStream) {
-        screenStream.getTracks().forEach(t => t.stop());
-        setScreenStream(null);
-      }
+      // Don't cleanup stream on pause, just stop the interval
       cleanupScreenshotCapture();
       setLoading(false);
     }
@@ -374,74 +426,87 @@ export const TimeTrackerProvider: React.FC<TimeTrackerProviderProps> = ({ childr
       setError('Failed to resume tracking');
       toast.error('Failed to resume tracking');
     } finally {
-      // Will reinitialize capture via useEffect
+      // Screenshot capturing will resume via useEffect
       setLoading(false);
     }
   };
 
   const captureScreenshot = async () => {
-    if (!currentSession?.id) return;
+    if (!currentSession?.id || !screenStream || !screenStream.active) {
+      console.warn('Cannot capture screenshot: missing session, stream, or stream inactive');
+      return;
+    }
 
     try {
-      // Ensure we have or request a persistent screen stream
-      let stream = screenStream;
-      if (!stream) {
-        stream = await navigator.mediaDevices.getDisplayMedia({
-          video: true,
-          audio: false
-        } as DisplayMediaStreamOptions);
-        setScreenStream(stream);
+      const video = document.createElement('video');
+      video.srcObject = screenStream;
+      video.muted = true;
+      
+      // Wait for video to be ready
+      await new Promise<void>((resolve, reject) => {
+        video.onloadedmetadata = () => resolve();
+        video.onerror = reject;
+        video.play();
+      });
+
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        throw new Error('Unable to get canvas context');
+      }
+      
+      ctx.drawImage(video, 0, 0);
+
+      // Convert to blob
+      const blob = await new Promise<Blob | null>((resolve) => {
+        canvas.toBlob(resolve, 'image/png', 0.9);
+      });
+
+      if (!blob) {
+        throw new Error('Failed to create screenshot blob');
       }
 
-      const video = document.createElement('video');
-      video.srcObject = stream;
-      await video.play();
+      const formData = new FormData();
+      formData.append('file', blob, 'screenshot.png');
+      
+      const now = new Date();
+      const minutes = Math.max(1, Number(settings?.screenshotFrequency) || 1);
+      const intervalStart = new Date(now.getTime() - minutes * 60 * 1000);
+      
+      formData.append('activity', JSON.stringify({
+        intervalStart,
+        intervalEnd: now,
+        activityLevel: calculateActivityLevel(),
+        keystrokes: activityData.keystrokes,
+        mouseClicks: activityData.mouseClicks,
+        activeWindowTitle: document.title,
+        activeApplicationName: 'Web Browser',
+        isManualCapture: false
+      }));
 
-      const onLoaded = async () => {
-        const canvas = document.createElement('canvas');
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
+      const response = await fetch(`/api/employee/time-tracker/sessions/${currentSession.id}/screenshots`, {
+        method: 'POST',
+        body: formData
+      });
 
-        const ctx = canvas.getContext('2d');
-        ctx?.drawImage(video, 0, 0);
-
-        canvas.toBlob(async (blob) => {
-          if (!blob) return;
-
-          const formData = new FormData();
-          formData.append('file', blob, 'screenshot.png');
-          
-          const now = new Date();
-          const minutes = Math.max(1, Number(settings?.screenshotFrequency) || 1);
-          const intervalStart = new Date(now.getTime() - minutes * 60 * 1000);
-          
-          formData.append('activity', JSON.stringify({
-            intervalStart,
-            intervalEnd: now,
-            activityLevel: calculateActivityLevel(),
-            keystrokes: activityData.keystrokes,
-            mouseClicks: activityData.mouseClicks,
-            activeWindowTitle: document.title,
-            activeApplicationName: 'Web Browser',
-            isManualCapture: false
-          }));
-
-          const response = await fetch(`/api/employee/time-tracker/sessions/${currentSession.id}/screenshots`, {
-            method: 'POST',
-            body: formData
-          });
-
-          if (response.ok) {
-            const data = await response.json();
-            setCurrentSession(data.data);
-          }
-        }, 'image/png');
-
-        video.removeEventListener('loadedmetadata', onLoaded);
-      };
-      video.addEventListener('loadedmetadata', onLoaded);
+      if (response.ok) {
+        const data = await response.json();
+        setCurrentSession(data.data);
+        console.log('Screenshot captured successfully');
+      } else {
+        console.error('Failed to upload screenshot');
+      }
     } catch (error) {
       console.error('Error capturing screenshot:', error);
+      
+      // If stream is ended, cleanup and notify
+      if (error instanceof Error && error.message.includes('stream')) {
+        cleanupScreenStream();
+        toast.error('Screen sharing interrupted. Please restart session for screenshots.');
+      }
     }
   };
 
@@ -525,3 +590,4 @@ export const TimeTrackerProvider: React.FC<TimeTrackerProviderProps> = ({ childr
     </TimeTrackerContext.Provider>
   );
 };
+
